@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   PFOS — Global Styles
+   Mobile-first, touch-optimized
+   ============================================================ */
+
+@layer base {
+  html {
+    /* Prevent iOS font scaling saat landscape */
+    -webkit-text-size-adjust: 100%;
+    /* Smooth scroll */
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+    /* Prevent overscroll bounce di iOS */
+    overscroll-behavior: none;
+  }
+
+  /* Tap target minimum 44px (Apple HIG) */
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+@layer components {
+  /* Card standar */
+  .card {
+    @apply bg-white rounded-2xl shadow-sm border border-gray-100 p-4;
+  }
+
+  /* Tombol utama (primary) */
+  .btn-primary {
+    @apply flex items-center justify-center gap-2 px-6 py-3
+           bg-gray-900 text-white font-semibold rounded-xl
+           active:scale-95 transition-transform duration-75
+           disabled:opacity-40 disabled:pointer-events-none;
+  }
+
+  /* Tombol outline */
+  .btn-outline {
+    @apply flex items-center justify-center gap-2 px-6 py-3
+           border-2 border-gray-900 text-gray-900 font-semibold rounded-xl
+           active:scale-95 transition-transform duration-75
+           disabled:opacity-40 disabled:pointer-events-none;
+  }
+
+  /* Badge status */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  /* Label role */
+  .role-badge {
+    @apply badge bg-gray-100 text-gray-600;
+  }
+
+  /* Bottom navigation container */
+  .bottom-nav {
+    @apply fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200
+           flex items-center justify-around h-18 px-2 z-40;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+@layer utilities {
+  /* Safe area insets untuk notch & home indicator iOS */
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .pb-nav  { padding-bottom: calc(4.5rem + env(safe-area-inset-bottom)); }
+
+  /* Animasi shake untuk input PIN salah */
+  .shake {
+    animation: shake 0.4s ease-in-out;
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%       { transform: translateX(-8px); }
+    40%       { transform: translateX(8px); }
+    60%       { transform: translateX(-6px); }
+    80%       { transform: translateX(6px); }
+  }
+
+  /* Pulse untuk indikator realtime */
+  .pulse-dot {
+    animation: pulse-dot 2s infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+  }
+}
