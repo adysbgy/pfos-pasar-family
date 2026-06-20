@@ -1,15 +1,180 @@
-// TODO: Implementasi Hari berikutnya
-export default function Page() {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
-      <div className="text-5xl mb-4">✅</div>
-      <h1 className="text-xl font-bold text-gray-900 mb-1">✅ QA Gate</h1>
-      <p className="text-sm text-gray-500 mb-1">Pemeriksaan Kualitas</p>
-      <p className="text-xs text-gray-400">Diakses oleh: QA Checker</p>
-      <div className="mt-8 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
-        <p className="text-xs text-amber-700 font-medium">🚧 Halaman ini sedang dikembangkan</p>
-        <p className="text-xs text-amber-600 mt-0.5">Coming in next build</p>
+'use client'
+
+import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import type { SessionPayload } from '@/types'
+
+// ============================================================
+// QA Gate — Pemeriksaan kualitas sebelum hidangan ke pelanggan
+// Role: qa_checker, supervisor, owner
+// ============================================================
+
+interface QAOrder {
+  id: string
+  queueId: string
+  order_number: string
+  order_items: { quantity: number; menu_item: { name: string } }[]
+  notes: string | null
+}
+
+const CHECKS = [
+  { key: 'piring_bersih',     label: 'Piring/wadah bersih',      icon: '🍽️' },
+  { key: 'sendok_bersih',     label: 'Sendok/alat makan bersih', icon: '🥄' },
+  { key: 'no_foreign_object', label: 'Tidak ada benda asing',    icon: '🔍' },
+  { key: 'menu_sesuai',       label: 'Menu sesuai pesanan',      icon: '📋' },
+  { key: 'topping_lengkap',   label: 'Topping/pelengkap lengkap',icon: '✨' },
+  { key: 'tampilan_ok',       label: 'Tampilan layak saji',      icon: '👁️' },
+] as const
+
+type CheckKey = typeof CHECKS[number]['key']
+
+export default function QAPage() {
+  const supabase = createClient()
+  const [session, setSession]       = useState<SessionPayload | null>(null)
+  const [pendingOrders, setPending] = useState<QAOrder[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [active, setActive]         = useState<QAOrder | null>(null)
+  const [checks, setChecks]         = useState<Partial<Record<CheckKey, boolean>>>({})
+  const [notes, setNotes]           = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [doneCount, setDoneCount]   = useState(0)
+
+  useEffect(() => {
+    fetch('/api/auth/session').then(r => r.json()).then(d => setSession(d.session))
+  }, [])
+
+  useEffect(() => {
+    if (!session?.selectedTenantId) return
+    loadPending(session.selectedTenantId)
+    const ch = supabase.channel('qa-rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'kitchen_queue',
+        filter: `tenant_id=eq.${session.selectedTenantId}` }, () => loadPending(session.selectedTenantId!))
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [session])
+
+  async function loadPending(tenantId: string) {
+    const { data } = await supabase
+      .from('kitchen_queue')
+      .select('id, order_id, order:orders(id, order_number, notes, order_items(quantity, menu_item:menu_items(name)))')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'qa_pending')
+    const mapped = (data ?? []).map((row: any) => ({
+      id: row.order.id, queueId: row.id,
+      order_number: row.order.order_number,
+      order_items: row.order.order_items,
+      notes: row.order.notes,
+    }))
+    setPending(mapped)
+    setLoading(false)
+  }
+
+  const allChecked = CHECKS.every(c => checks[c.key] !== undefined)
+  const allPass    = CHECKS.every(c => checks[c.key] === true)
+
+  async function submitQA(result: 'pass' | 'fail') {
+    if (!active || !session) return
+    setSubmitting(true)
+    await supabase.from('qa_checks').insert({
+      order_id: active.id, checker_id: session.userId,
+      ...Object.fromEntries(CHECKS.map(c => [c.key, checks[c.key] ?? null])),
+      notes: notes || null, result,
+    })
+    await supabase.from('kitchen_queue').update({ status: 'done' }).eq('id', active.queueId)
+    await supabase.from('orders').update({ status: result === 'pass' ? 'ready' : 'cancelled' }).eq('id', active.id)
+    if (result === 'fail') {
+      await supabase.from('dashboard_alerts').insert({
+        tenant_id: session.selectedTenantId, type: 'qa_fail', severity: 'red',
+        message: `QA FAIL: Order ${active.order_number} — ${notes || 'tidak ada catatan'}`,
+        reference_id: active.id,
+      })
+    }
+    setDoneCount(n => n + 1)
+    setActive(null)
+    loadPending(session.selectedTenantId!)
+    setSubmitting(false)
+  }
+
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
+
+  if (active) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-4">
+        <div className="flex items-center gap-3 mb-4">
+          <button onClick={() => setActive(null)} className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-100">←</button>
+          <h1 className="text-xl font-bold">{active.order_number}</h1>
+        </div>
+        <div className="card mb-4 bg-gray-50">
+          {active.order_items?.map((oi, i) => (
+            <p key={i} className="text-sm text-gray-700"><span className="font-semibold">×{oi.quantity}</span> {oi.menu_item?.name}</p>
+          ))}
+          {active.notes && <p className="text-xs text-amber-700 mt-2 bg-amber-50 rounded-lg px-2 py-1">📝 {active.notes}</p>}
+        </div>
+        <div className="space-y-2 mb-5">
+          {CHECKS.map(c => (
+            <div key={c.key} className={`card flex items-center gap-3 ${checks[c.key] === true ? 'bg-green-50 border-green-200' : checks[c.key] === false ? 'bg-red-50 border-red-200' : ''}`}>
+              <span className="text-2xl">{c.icon}</span>
+              <p className="flex-1 font-medium text-sm">{c.label}</p>
+              <button onClick={() => setChecks(p => ({ ...p, [c.key]: true }))}
+                className={`w-10 h-10 rounded-xl font-bold text-lg ${checks[c.key] === true ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400'}`}>✓</button>
+              <button onClick={() => setChecks(p => ({ ...p, [c.key]: false }))}
+                className={`w-10 h-10 rounded-xl font-bold text-lg ${checks[c.key] === false ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-400'}`}>✗</button>
+            </div>
+          ))}
+        </div>
+        {!allPass && allChecked && (
+          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
+            placeholder="Catatan masalah (wajib jika ada yang gagal)..."
+            className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm mb-4 focus:border-gray-900 outline-none resize-none" />
+        )}
+        {allChecked && (allPass ? (
+          <button onClick={() => submitQA('pass')} disabled={submitting}
+            className="w-full bg-green-600 text-white font-bold py-4 rounded-2xl text-lg disabled:opacity-50">
+            {submitting ? '...' : '✅ LULUS — Siap Disajikan'}
+          </button>
+        ) : (
+          <button onClick={() => submitQA('fail')} disabled={submitting || !notes.trim()}
+            className="w-full bg-red-600 text-white font-bold py-4 rounded-2xl text-lg disabled:opacity-50">
+            {submitting ? '...' : '❌ GAGAL — Batalkan Order'}
+          </button>
+        ))}
       </div>
+    )
+  }
+
+  return (
+    <div className="max-w-md mx-auto px-4 py-4">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold">QA Gate</h1>
+        {doneCount > 0 && <span className="bg-green-100 text-green-700 px-3 py-1.5 rounded-full text-sm font-medium">✅ {doneCount} selesai</span>}
+      </div>
+      {pendingOrders.length === 0 ? (
+        <div className="text-center py-20 text-gray-400">
+          <p className="text-5xl mb-3">🔍</p>
+          <p className="font-medium">Tidak ada order menunggu QA</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {pendingOrders.map(order => (
+            <div key={order.id} className="card">
+              <p className="text-lg font-bold mb-2">{order.order_number}</p>
+              <div className="mb-3">
+                {order.order_items?.map((oi, i) => (
+                  <p key={i} className="text-sm text-gray-700">×{oi.quantity} {oi.menu_item?.name}</p>
+                ))}
+              </div>
+              <button onClick={() => { setActive(order); setChecks({}); setNotes('') }}
+                className="w-full bg-gray-900 text-white font-bold py-3 rounded-xl text-sm">
+                🔍 Mulai Periksa
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
