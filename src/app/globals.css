@@ -63,7 +63,7 @@
   /* Bottom navigation container */
   .bottom-nav {
     @apply fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200
-           flex items-center justify-around h-18 px-2 z-40;
+           flex items-center justify-around h-nav px-2 z-40;
     padding-bottom: env(safe-area-inset-bottom);
   }
 }

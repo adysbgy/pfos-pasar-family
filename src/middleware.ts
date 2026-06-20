@@ -9,7 +9,8 @@ export function middleware(request: NextRequest) {
   // Rute publik yang tidak butuh login
   const isLoginPage = pathname === '/app/login'
   const isApiAuth   = pathname.startsWith('/api/auth')
-  const isPublic    = isLoginPage || isApiAuth
+  const isApiUsers  = pathname === '/api/users'
+  const isPublic    = isLoginPage || isApiAuth || isApiUsers
 
   // Baca session dari cookie
   const sessionCookie = request.cookies.get('pfos_session')

@@ -35,6 +35,9 @@ const config: Config = {
       spacing: {
         'nav': '4.5rem', // 72px — tinggi bottom nav
       },
+      height: {
+        'nav': '4.5rem', // 72px — tinggi bottom nav
+      },
     },
   },
   plugins: [],

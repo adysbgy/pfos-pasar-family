@@ -230,11 +230,15 @@ export function formatRupiah(amount: number): string {
   }).format(amount)
 }
 
-/** Prefix kode tenant untuk nomor order */
+/** Prefix kode tenant untuk nomor order — support slug pendek & panjang */
 export const TENANT_PREFIX: Record<string, string> = {
-  bagia:  'BG',
-  tl:     'TL',
-  hibiro: 'HB',
-  ramen:  'RF',
-  tjan:   'TJ',
+  bagia:           'BG',
+  'bagia-kopitiam':'BG',
+  tl:              'TL',
+  'tujuh-legenda': 'TL',
+  hibiro:          'HB',
+  ramen:           'RF',
+  'ramen-family':  'RF',
+  tjan:            'TJ',
+  'tjan-kopitiam': 'TJ',
 }
