@@ -28,7 +28,10 @@
       "Bash(chmod +x ~/bin/gh)",
       "Bash(~/bin/gh auth *)",
       "Bash(jobs)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(~/bin/gh repo *)",
+      "Bash(git push *)"
     ]
   }
 }
