@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { formatRupiah } from '@/types'
 import type { MenuItem, Category, SessionPayload, OrderChannel } from '@/types'
 
@@ -26,8 +25,6 @@ const CHANNELS: { value: OrderChannel; label: string; icon: string }[] = [
 ]
 
 export default function POSPage() {
-  const supabase = createClient()
-
   const [session, setSession]               = useState<SessionPayload | null>(null)
   const [categories, setCategories]         = useState<Category[]>([])
   const [menuItems, setMenuItems]           = useState<MenuItem[]>([])
@@ -52,13 +49,10 @@ export default function POSPage() {
 
   async function loadMenu(tenantId: string) {
     setLoading(true)
-    const [catRes, menuRes] = await Promise.all([
-      supabase.from('categories').select('*').eq('tenant_id', tenantId).order('sort_order'),
-      supabase.from('menu_items')
-        .select('*').eq('tenant_id', tenantId).eq('status', 'active').order('sort_order'),
-    ])
-    setCategories(catRes.data ?? [])
-    setMenuItems(menuRes.data ?? [])
+    const res = await fetch(`/api/menu?tenantId=${tenantId}`)
+    const data = await res.json()
+    setCategories(data.categories ?? [])
+    setMenuItems(data.menuItems ?? [])
     setLoading(false)
   }
 

@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       .from('tenants').select('slug').eq('id', tenantId).single()
 
     const PREFIXES: Record<string, string> = {
-      bagia: 'BG', tl: 'TL', hibiro: 'HB', ramen: 'RF', tjan: 'TJ'
+      'bagia-kopitiam': 'BG', 'tujuh-legenda': 'TL', hibiro: 'HB', 'ramen-family': 'RF', 'tjan-kopitiam': 'TJ'
     }
     const prefix = PREFIXES[tenant?.slug ?? ''] ?? 'XX'
     const dateStr = today.replace(/-/g, '')

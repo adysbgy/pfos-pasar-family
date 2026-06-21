@@ -7,7 +7,28 @@
       "Bash(pkill -f \"next dev\")",
       "mcp__Claude_Preview__preview_start",
       "Bash(curl -s localhost:3000/api/users)",
-      "Bash(curl -sv localhost:3000/api/users)"
+      "Bash(curl -sv localhost:3000/api/users)",
+      "Bash(lsof -ti:3000)",
+      "Bash(xargs -r kill)",
+      "Bash(curl -s -X POST localhost:3000/api/auth/pin -H \"Content-Type: application/json\" -d '{\"userId\":\"33333333-0000-0000-0000-000000000003\",\"pin\":\"123456\"}')",
+      "Bash(node -e ' *)",
+      "Bash(npx --yes -p bcryptjs node -e ' *)",
+      "Bash(mkdir -p /tmp/pin-hash-tool)",
+      "Bash(npm init *)",
+      "Bash(gh auth *)",
+      "Bash(brew list *)",
+      "Read(//opt/homebrew/bin/**)",
+      "Bash(env)",
+      "Bash(curl -s -I https://github.com)",
+      "Bash(curl -s https://api.github.com/repos/cli/cli/releases/latest)",
+      "Bash(curl -sL -o gh.zip \"https://github.com/cli/cli/releases/download/v2.95.0/gh_2.95.0_macOS_arm64.zip\")",
+      "Bash(unzip -q -o gh.zip)",
+      "Bash(mkdir -p ~/bin)",
+      "Bash(cp gh_2.95.0_macOS_arm64/bin/gh ~/bin/gh)",
+      "Bash(chmod +x ~/bin/gh)",
+      "Bash(~/bin/gh auth *)",
+      "Bash(jobs)",
+      "Bash(git add *)"
     ]
   }
 }
