@@ -35,7 +35,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json() as CreateOrderBody
-    const { tenantId, channel, items, paymentMethod, amountReceived, qrisReference, customerName, notes } = body
+    const { tenantId, channel, items, paymentMethod, amountReceived, qrisReference, customerName, tableNumber, notes } = body
 
     if (!tenantId || !channel || !items?.length || !paymentMethod) {
       return NextResponse.json({ error: 'Data order tidak lengkap' }, { status: 400 })
@@ -83,6 +83,7 @@ export async function POST(request: Request) {
         discount: 0,
         total,
         customer_name: customerName,
+        table_number: tableNumber || null,
         notes,
         kasir_id: session.userId,
       })
