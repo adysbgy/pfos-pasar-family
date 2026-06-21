@@ -10,15 +10,17 @@ Owner **tidak selalu di lokasi**. Semua kontrol via HP (owner dashboard). Staff 
 
 ## Tenant Aktif
 
-| Slug | Nama | Warna | Catatan |
-|------|------|-------|---------|
-| `bagia` | Bagia | #D97706 | Menu = TL tapi tanpa makanan berat |
-| `tl` | Tujuh Legenda | #DC2626 | Menu lengkap. GoFood aktif. TANPA Nikudon |
+| Slug DB | Nama | Warna | Catatan |
+|---------|------|-------|---------|
+| `bagia-kopitiam` | Bagia | #D97706 | Menu = TL tapi tanpa makanan berat |
+| `tujuh-legenda` | Tujuh Legenda | #DC2626 | Menu lengkap. GoFood aktif. **TANPA Nikudon** |
 | `hibiro` | Hibiro | #1D4ED8 | Brand Nikudon/Jepang. Di TL, brand ini = Hibiro |
-| `ramen` | Ramen Family | #16A34A | 2 SKU: Ramen Original 20K, Ramen Spicy 25K. Es Teh bundled |
-| `tjan` | Tjan | #6B7280 | **PAUSE** — menu ada di DB tapi semua inactive |
+| `ramen-family` | Ramen Family | #16A34A | 2 SKU: Ramen Original 20K, Ramen Spicy 25K |
+| `tjan-kopitiam` | Tjan | #6B7280 | **PAUSE** — semua menu inactive |
 
-**Jam operasional semua tenant: 06:30–12:30. Batas closing: 13:30.**
+**Jam operasional: 06:30–12:30. Batas closing: 13:30.**
+
+⚠️ Slug DB berbeda dari kode lama. TENANT_PREFIX di `src/types/index.ts` support keduanya.
 
 ## Staff & Roles
 
@@ -30,78 +32,91 @@ Owner **tidak selalu di lokasi**. Semua kontrol via HP (owner dashboard). Staff 
 | Putra | kitchen | TL | active |
 | Bu Een | kitchen | Ramen + float TL | active |
 | Nina | kasir | Ramen | active |
-| Ardan | kitchen | Hibiro | **evaluation** — risiko dipecat, owner bisa deactivate instant |
+| Ardan | kitchen | Hibiro | **evaluation** — owner bisa deactivate instant |
 
-Kasir bersifat **fleksibel**: siapa yang jaga = siapa kasir. Staff bisa pilih tenant saat login.
+Kasir **fleksibel**: siapa yang jaga = siapa kasir. Staff bisa pilih tenant saat login.
 
 ## Tech Stack
 
 - **Next.js 14** App Router + TypeScript
 - **Tailwind CSS** — mobile-first, touch target min 44px
-- **Supabase** (PostgreSQL + Auth + Realtime + Storage)
-- **@supabase/ssr** untuk session management
-- **Auth**: PIN-based untuk staff (cookie `pfos_session`), Supabase Auth untuk owner
-- **Deploy**: Vercel + domain `pasarfamily.my.id`
+- **Supabase** (PostgreSQL + Realtime + Storage) di `ueronwrodyzhwmarizvs.supabase.co`
+- **@supabase/ssr** untuk cookie-based session
+- **Auth**: PIN-based, cookie `pfos_session` (httpOnly, 8 jam)
+- **Deploy**: Vercel + `pasarfamily.my.id`
 
-## Struktur File Penting
+## Struktur File
 
 ```
 pfos-app/
 ├── src/
-│   ├── types/index.ts          ← Semua TypeScript types + ROLE_HOME + formatRupiah
-│   ├── middleware.ts            ← Route protection by pfos_session cookie
-│   ├── lib/
-│   │   ├── supabase/client.ts  ← Browser client
-│   │   ├── supabase/server.ts  ← Server component client
-│   │   └── supabase/admin.ts   ← Admin (service_role) — hanya API routes
+│   ├── types/index.ts          ← Semua TS types + ROLE_HOME + TENANT_PREFIX + formatRupiah
+│   ├── middleware.ts            ← Route protection via pfos_session cookie
+│   ├── lib/supabase/
+│   │   ├── client.ts           ← Browser client
+│   │   ├── server.ts           ← Server component client
+│   │   └── admin.ts            ← Service role — HANYA di API routes
 │   └── app/
 │       ├── api/
 │       │   ├── auth/pin/       ← POST: verifikasi PIN → set cookie
 │       │   ├── auth/logout/    ← POST: hapus cookie
-│       │   ├── auth/session/   ← GET: baca session dari cookie
-│       │   ├── users/          ← GET: list staff aktif untuk login screen
-│       │   └── orders/         ← POST: buat order baru
+│       │   ├── auth/session/   ← GET: baca session
+│       │   ├── users/          ← GET: list staff aktif (public, untuk login)
+│       │   ├── orders/         ← POST: buat order
+│       │   ├── menu/           ← GET/POST/PATCH/DELETE: manajemen menu
+│       │   ├── tenants/        ← GET: daftar tenant aktif
+│       │   ├── inventory/      ← GET/POST: stok + adjust
+│       │   ├── inventory/history/ ← GET: riwayat transaksi stok
+│       │   ├── reports/daily/  ← GET: aggregasi laporan harian
+│       │   └── reports/export-csv/ ← GET: download CSV (Excel-compatible)
 │       └── app/
 │           ├── login/          ← Staff grid + PIN keypad
 │           ├── pos/            ← Input order (kasir)
 │           ├── kitchen/        ← KDS antrian (kitchen)
-│           ├── qa/             ← QA checklist (qa_checker, supervisor)
-│           ├── cash/           ← Sesi kas (kasir)
+│           ├── qa/             ← QA checklist 6 poin
+│           ├── cash/           ← Sesi kas
 │           ├── closing/        ← Laporan penutupan
 │           ├── tasks/          ← Tugas harian
-│           └── dashboard/      ← Owner dashboard anti-bocor
+│           ├── dashboard/      ← Owner dashboard anti-bocor
+│           ├── inventory/      ← Manajemen stok
+│           ├── reports/        ← Laporan harian + export
+│           └── menu/           ← Manajemen menu (owner)
 └── database/
     ├── schema.sql              ← Semua tabel + RLS + indexes
-    ├── seed.sql                ← Data awal (5 tenant, 7 staff, menu lengkap)
-    ├── functions.sql           ← RPC: verify_pin, get_user_session_data, dll
-    └── README.md               ← Panduan setup Supabase
+    ├── seed.sql                ← Data awal (5 tenant, 7 staff, menu)
+    ├── functions.sql           ← RPC functions (sudah di-run di Supabase)
+    ├── sprint2_inventory.sql   ← Tabel inventory (sudah di-run di Supabase)
+    └── README.md
 ```
 
 ## Database — Tabel Utama
 
 ```sql
-tenants          -- 5 tenant
-users            -- 7 staff (PIN bcrypt di kolom pin_hash)
+-- Sprint 1
+tenants          -- 5 tenant (slug: bagia-kopitiam, tujuh-legenda, hibiro, ramen-family, tjan-kopitiam)
+users            -- 7 staff (PIN bcrypt $2a$ di kolom pin_hash)
 roles            -- owner|supervisor|kasir|kitchen|qa_checker|marketing_admin|viewer
-user_roles       -- many-to-many, tenant_id nullable (null = semua tenant)
-categories       -- per tenant
-menu_items       -- price integer (Rupiah), status active/inactive
+user_roles       -- many-to-many, tenant_id nullable = akses semua tenant
+categories       -- per tenant (bukan menu_categories!)
+menu_items       -- price integer Rupiah, status active/inactive
 orders           -- status: pending→cooking→qa_pending→ready→completed|cancelled
-order_items      -- qty + unit_price (snapshot saat order)
+order_items      -- qty + unit_price (snapshot)
 order_sequences  -- counter nomor order per tenant per hari
-payments         -- cash atau qris
-cash_sessions    -- sesi kas per tenant per hari, track selisih
-cash_expenses    -- pengeluaran dari laci kas
-kitchen_queue    -- antrian masak per order
-qa_checks        -- checklist 6 poin per order
-complaints       -- insiden / komplain
-closing_reports  -- laporan harian
-staff_tasks      -- tugas dari supervisor/owner
-daily_todos      -- checklist harian
-dashboard_alerts -- alert anti-bocor (severity: red|yellow|green)
+payments         -- method: cash|qris
+cash_sessions    -- sesi kas per tenant per hari
+cash_expenses    -- pengeluaran dari laci
+kitchen_queue    -- antrian masak
+qa_checks        -- 6 poin QA per order
+dashboard_alerts -- severity: red|yellow|green
+staff_tasks      -- tugas dari owner/supervisor
+
+-- Sprint 2 (sprint2_inventory.sql)
+inventory_items       -- item stok per tenant (unit, min_stock, category)
+inventory_stock       -- level stok saat ini (1 row per item)
+inventory_transactions -- history semua perubahan stok
 ```
 
-## Supabase RPC Functions (database/functions.sql)
+## Supabase RPC Functions
 
 | Fungsi | Dipanggil dari |
 |--------|----------------|
@@ -110,86 +125,94 @@ dashboard_alerts -- alert anti-bocor (severity: red|yellow|green)
 | `next_order_sequence(tenant_id, date)` | POST /api/orders |
 | `get_active_users_for_login()` | GET /api/users |
 | `get_dashboard_summary(date)` | GET /api/dashboard |
+| `adjust_inventory_stock(item_id, type, qty_change, notes, user_id)` | POST /api/inventory |
 
 ## Session Cookie
 
-Cookie `pfos_session` (httpOnly, 8 jam) berisi:
+Cookie `pfos_session` (httpOnly, 8 jam):
 ```typescript
 {
   userId: string
   name: string
-  primaryRole: RoleName
+  primaryRole: RoleName      // 'owner'|'supervisor'|'kasir'|'kitchen'|'qa_checker'|...
   homeTenantId: string | null
   selectedTenantId: string | null
-  loginAt: number
+  loginAt: number            // Unix ms
 }
 ```
 
-Baca di server: `cookies().get('pfos_session')` lalu JSON.parse.
-Baca di client: `fetch('/api/auth/session')`.
+Baca di server: `cookies().get('pfos_session')` → JSON.parse  
+Baca di client: `fetch('/api/auth/session')`
+
+## Nav Per Role (layout.tsx)
+
+| Role | Tab |
+|------|-----|
+| owner | Dashboard, POS, Menu🍽️, Stok📦, Laporan📈 |
+| supervisor | QA, Stok📦, Laporan📈, Tugas |
+| kasir | POS, Kas, Tugas |
+| kitchen | Dapur, Tugas |
+| qa_checker | QA, Tugas |
 
 ## Konvensi Coding
 
-- **Semua UI Bahasa Indonesia** — error msg, label, tombol
-- **Rupiah**: selalu `formatRupiah(amount)` dari `@/types`
-- **Admin client** (`createAdminClient()`) hanya di API routes — jangan di komponen
-- **Realtime**: subscribe ke tabel `orders`, `kitchen_queue`, `dashboard_alerts`
-- **Nomor order format**: `[PREFIX]-[YYYYMMDD]-[SEQ3]` contoh: `TL-20260620-001`
-- **Anti-bocor threshold**: selisih kas > Rp10.000 = alert merah
-- **Touch targets**: min-h-[44px] + min-w-[44px] selalu
-- Gunakan `active:scale-95 transition-transform duration-75` untuk feedback tap
+- **Bahasa Indonesia** di semua UI — label, error, tombol
+- **Rupiah**: `formatRupiah(amount)` dari `@/types` (jangan format manual)
+- **Admin client** hanya di API routes: `createAdminClient()` dari `@/lib/supabase/admin`
+- **Tabel kategori**: nama tabelnya `categories` (bukan `menu_categories`)
+- **Nomor order**: `[PREFIX]-[YYYYMMDD]-[SEQ3]` → contoh `TL-20260621-001`
+- **Selisih kas > Rp10.000** = alert merah wajib
+- **Touch targets**: min 44px (gunakan `min-h-[44px]`)
+- Feedback tap: `active:scale-95 transition-transform duration-75`
+- Realtime: subscribe ke `orders`, `kitchen_queue`, `dashboard_alerts`
 
-## Alert Anti-Bocor
+## Inventory — Tipe Transaksi
 
-Dashboard owner harus tampilkan alert merah jika:
-1. Selisih kas > Rp10.000
-2. Closing report belum masuk setelah jam 13:30
-3. QA fail
-4. Komplain severity = high
+| type | Arah | Kapan |
+|------|------|-------|
+| `purchase` | + masuk | Beli/terima dari supplier |
+| `usage` | − keluar | Dipakai untuk order |
+| `waste` | − keluar | Terbuang/rusak |
+| `adjustment` | ±  | Koreksi manual |
+| `opening` | + masuk | Stok awal setup |
 
-## QRIS
-
-Semua tenant pakai 1 QRIS stiker (GoPay Merchant). Kasir dapat notif di HP via app GoPay Merchant. Tidak ada rekonsiliasi otomatis — kasir input manual total QRIS saat closing.
-
-## Environment Variables (.env.local)
-
-```
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-SESSION_SECRET=
-```
+qty_change positif = masuk, negatif = keluar. RPC `adjust_inventory_stock` otomatis buat dashboard_alert jika stok ≤ min_stock.
 
 ## Sprint Progress
 
-| Hari | Halaman | Status |
-|------|---------|--------|
-| 1-2  | Scaffold + Auth + Login | ✅ DONE |
-| 3-4  | POS | ✅ DONE |
-| 5    | Kitchen KDS | ✅ DONE |
-| 6    | QA Gate | ✅ DONE |
-| 7    | Cash Session | ✅ DONE |
-| 8    | Closing Report | ✅ DONE |
-| 9    | Owner Dashboard | ✅ DONE |
-| 10   | Tasks | ✅ DONE |
-| 11   | PWA + offline | 🔜 |
-| 12-14| Testing + training + go live | 🔜 |
+| Sprint | Fitur | Status |
+|--------|-------|--------|
+| 1 | Login PIN | ✅ LIVE |
+| 1 | POS | ✅ LIVE |
+| 1 | Kitchen KDS | ✅ LIVE |
+| 1 | QA Gate | ✅ LIVE |
+| 1 | Cash Session | ✅ LIVE |
+| 1 | Closing Report | ✅ LIVE |
+| 1 | Owner Dashboard | ✅ LIVE |
+| 1 | Tasks | ✅ LIVE |
+| 2 | Inventory & Stok | ✅ LIVE |
+| 2 | Laporan Harian + Export CSV | ✅ LIVE |
+| 2 | Manajemen Menu | ✅ LIVE |
+| 2 | PWA (install di homescreen) | 🔜 |
+| 2 | Voucher & Diskon | 🔜 |
 
 ## Commands
 
 ```bash
-npm run dev          # Development server → localhost:3000
-npm run build        # Build production
-npm run lint         # ESLint check
+npm run dev          # Dev server → localhost:3000
+npm run build        # Build production (cek error dulu sebelum push)
+npm run lint         # ESLint
 git add . && git commit -m "feat: ..."
-git push origin main # Push ke GitHub → Vercel auto-deploy
+git push origin main # Auto-deploy ke Vercel
 ```
 
 ## Yang JANGAN Dilakukan
 
-- Jangan tampilkan Nikudon di tenant TL (Tujuh Legenda) — brand itu = Hibiro
-- Jangan hardcode kasir per tenant — kasir bisa lintas tenant
-- Jangan commit `.env.local` ke Git
-- Jangan gunakan `createAdminClient()` di komponen browser
-- Jangan install library baru tanpa cek dulu apakah Tailwind + built-in bisa handle
-- Jangan buat halaman dengan scroll horizontal (HP sempit)
+- ❌ Jangan tampilkan Nikudon di tenant `tujuh-legenda` — brand itu = Hibiro
+- ❌ Jangan hardcode kasir per tenant — kasir lintas tenant
+- ❌ Jangan commit `.env.local` ke Git
+- ❌ Jangan `createAdminClient()` di komponen browser/client
+- ❌ Jangan install npm package baru tanpa cek dulu (sandbox npm sering diblokir)
+- ❌ Jangan buat scroll horizontal — layar HP sempit
+- ❌ Jangan pakai nama tabel `menu_categories` — yang benar adalah `categories`
+- ❌ Jangan assume slug tenant — selalu cek DB, slug pakai format panjang (`bagia-kopitiam`, bukan `bagia`)
