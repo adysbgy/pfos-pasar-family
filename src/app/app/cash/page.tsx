@@ -2,10 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import { formatRupiah } from '@/types'
+import TenantPicker from '@/components/TenantPicker'
 import type { SessionPayload, CashSession } from '@/types'
+
+interface Tenant { id: string; name: string; color: string }
 
 export default function CashPage() {
   const [session, setSession]         = useState<SessionPayload | null>(null)
+  const [tenants, setTenants]         = useState<Tenant[]>([])
+  const [selectedTenant, setSelectedTenant] = useState('')
   const [cashSession, setCashSession] = useState<CashSession | null>(null)
   const [loading, setLoading]         = useState(true)
   const [openingCash, setOpeningCash] = useState('')
@@ -15,13 +20,18 @@ export default function CashPage() {
   const [submitting, setSubmitting]   = useState(false)
 
   useEffect(() => {
-    fetch('/api/auth/session').then(r => r.json()).then(d => setSession(d.session))
+    fetch('/api/auth/session').then(r => r.json()).then(d => {
+      setSession(d.session)
+      if (d.session?.selectedTenantId) setSelectedTenant(d.session.selectedTenantId)
+      else setLoading(false)
+    })
+    fetch('/api/tenants').then(r => r.json()).then(d => setTenants(d.tenants ?? []))
   }, [])
 
   useEffect(() => {
-    if (!session?.selectedTenantId) return
-    loadSession(session.selectedTenantId)
-  }, [session])
+    if (!selectedTenant) return
+    loadSession(selectedTenant)
+  }, [selectedTenant])
 
   async function loadSession(tenantId: string) {
     const res = await fetch(`/api/cash?tenantId=${tenantId}`)
@@ -32,13 +42,13 @@ export default function CashPage() {
   }
 
   async function openSession() {
-    if (!session?.selectedTenantId) return
+    if (!selectedTenant) return
     setSubmitting(true)
     const res = await fetch('/api/cash', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        action: 'open', tenantId: session.selectedTenantId, userId: session.userId,
+        action: 'open', tenantId: selectedTenant, userId: session?.userId,
         openingCash: parseInt(openingCash) || 0,
       }),
     })
@@ -68,6 +78,18 @@ export default function CashPage() {
   const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0)
   const expectedCash  = (cashSession?.opening_cash ?? 0) + (cashSession?.cash_sales ?? 0) - totalExpenses
 
+  if (!session?.selectedTenantId && !selectedTenant) {
+    return (
+      <div>
+        <TenantPicker tenants={tenants} selected={selectedTenant} onSelect={id => { setLoading(true); setSelectedTenant(id) }} />
+        <div className="text-center py-20 text-gray-400">
+          <p className="text-5xl mb-3">🏪</p>
+          <p className="font-medium">Pilih tenant dulu</p>
+        </div>
+      </div>
+    )
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center min-h-[60vh]">
       <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
@@ -78,6 +100,7 @@ export default function CashPage() {
   if (!cashSession) {
     return (
       <div className="max-w-md mx-auto px-4 py-6">
+        {!session?.selectedTenantId && <TenantPicker tenants={tenants} selected={selectedTenant} onSelect={id => { setLoading(true); setSelectedTenant(id) }} />}
         <h1 className="text-xl font-bold mb-1">Buka Sesi Kas</h1>
         <p className="text-sm text-gray-500 mb-6">Hitung modal awal sebelum mulai berjualan</p>
         <div className="card mb-4">
@@ -96,6 +119,7 @@ export default function CashPage() {
 
   return (
     <div className="max-w-md mx-auto px-4 py-4">
+      {!session?.selectedTenantId && <TenantPicker tenants={tenants} selected={selectedTenant} onSelect={id => { setLoading(true); setSelectedTenant(id) }} />}
       <h1 className="text-xl font-bold mb-4">Sesi Kas Hari Ini</h1>
 
       {/* Ringkasan */}

@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { formatRupiah } from '@/types'
+import TenantPicker from '@/components/TenantPicker'
 import type { MenuItem, Category, SessionPayload, OrderChannel } from '@/types'
+
+interface Tenant { id: string; name: string; color: string }
 
 // ============================================================
 // Halaman POS — Input Order
@@ -26,6 +29,8 @@ const CHANNELS: { value: OrderChannel; label: string; icon: string }[] = [
 
 export default function POSPage() {
   const [session, setSession]               = useState<SessionPayload | null>(null)
+  const [tenants, setTenants]               = useState<Tenant[]>([])
+  const [selectedTenant, setSelectedTenant] = useState('')
   const [categories, setCategories]         = useState<Category[]>([])
   const [menuItems, setMenuItems]           = useState<MenuItem[]>([])
   const [loading, setLoading]               = useState(true)
@@ -39,13 +44,18 @@ export default function POSPage() {
   const [successOrder, setSuccessOrder]     = useState<{ number: string; change: number } | null>(null)
 
   useEffect(() => {
-    fetch('/api/auth/session').then(r => r.json()).then(d => setSession(d.session))
+    fetch('/api/auth/session').then(r => r.json()).then(d => {
+      setSession(d.session)
+      if (d.session?.selectedTenantId) setSelectedTenant(d.session.selectedTenantId)
+      else setLoading(false)
+    })
+    fetch('/api/tenants').then(r => r.json()).then(d => setTenants(d.tenants ?? []))
   }, [])
 
   useEffect(() => {
-    if (!session?.selectedTenantId) return
-    loadMenu(session.selectedTenantId)
-  }, [session])
+    if (!selectedTenant) return
+    loadMenu(selectedTenant)
+  }, [selectedTenant])
 
   async function loadMenu(tenantId: string) {
     setLoading(true)
@@ -78,7 +88,7 @@ export default function POSPage() {
   const filteredMenu = activeCategory === 'all' ? menuItems : menuItems.filter(m => m.category_id === activeCategory)
 
   async function handleSubmit() {
-    if (!session?.selectedTenantId || cart.length === 0) return
+    if (!selectedTenant || cart.length === 0) return
     if (paymentMethod === 'cash' && cashReceived < cartTotal) return
     setSubmitting(true)
     try {
@@ -86,7 +96,7 @@ export default function POSPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tenantId: session.selectedTenantId,
+          tenantId: selectedTenant,
           channel,
           items: cart.map(c => ({ menuItemId: c.menuItem.id, quantity: c.quantity, unitPrice: c.menuItem.price })),
           paymentMethod,
@@ -125,6 +135,19 @@ export default function POSPage() {
         <button onClick={() => setSuccessOrder(null)} className="mt-8 btn-primary w-full max-w-xs">
           Order Berikutnya
         </button>
+      </div>
+    )
+  }
+
+  // ── Pilih tenant dulu (owner/supervisor tanpa home tenant tetap) ──
+  if (!session?.selectedTenantId && !selectedTenant) {
+    return (
+      <div>
+        <TenantPicker tenants={tenants} selected={selectedTenant} onSelect={id => { setLoading(true); setSelectedTenant(id) }} />
+        <div className="text-center py-20 text-gray-400">
+          <p className="text-5xl mb-3">🏪</p>
+          <p className="font-medium">Pilih tenant dulu</p>
+        </div>
       </div>
     )
   }
@@ -249,6 +272,7 @@ export default function POSPage() {
   // ── View: Menu ────────────────────────────────────────────
   return (
     <div className="flex flex-col" style={{ height: 'calc(100vh - 7.5rem)' }}>
+      {!session?.selectedTenantId && <TenantPicker tenants={tenants} selected={selectedTenant} onSelect={id => { setLoading(true); setSelectedTenant(id) }} />}
       {/* Channel */}
       <div className="bg-white px-4 py-2 border-b border-gray-100 flex gap-2 overflow-x-auto">
         {CHANNELS.map(ch => (

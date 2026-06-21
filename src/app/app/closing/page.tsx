@@ -2,10 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import { formatRupiah } from '@/types'
+import TenantPicker from '@/components/TenantPicker'
 import type { SessionPayload } from '@/types'
+
+interface Tenant { id: string; name: string; color: string }
 
 export default function ClosingPage() {
   const [session, setSession]       = useState<SessionPayload | null>(null)
+  const [tenants, setTenants]       = useState<Tenant[]>([])
+  const [selectedTenant, setSelectedTenant] = useState('')
   const [loading, setLoading]       = useState(true)
   const [summary, setSummary]       = useState<any>(null)
   const [cashSession, setCashSession] = useState<any>(null)
@@ -16,13 +21,18 @@ export default function ClosingPage() {
   const [submitted, setSubmitted]   = useState(false)
 
   useEffect(() => {
-    fetch('/api/auth/session').then(r => r.json()).then(d => setSession(d.session))
+    fetch('/api/auth/session').then(r => r.json()).then(d => {
+      setSession(d.session)
+      if (d.session?.selectedTenantId) setSelectedTenant(d.session.selectedTenantId)
+      else setLoading(false)
+    })
+    fetch('/api/tenants').then(r => r.json()).then(d => setTenants(d.tenants ?? []))
   }, [])
 
   useEffect(() => {
-    if (!session?.selectedTenantId) return
-    loadData(session.selectedTenantId)
-  }, [session])
+    if (!selectedTenant) return
+    loadData(selectedTenant)
+  }, [selectedTenant])
 
   async function loadData(tenantId: string) {
     const res = await fetch(`/api/closing?tenantId=${tenantId}`)
@@ -38,7 +48,7 @@ export default function ClosingPage() {
   const selisih = parseInt(actualCash) - expectedCash
 
   async function submitClosing() {
-    if (!session?.selectedTenantId || !summary) return
+    if (!selectedTenant || !summary) return
     if (Math.abs(selisih) > 10000 && !selisihNotes.trim()) {
       alert('Selisih > Rp10.000! Wajib isi catatan selisih.')
       return
@@ -48,8 +58,8 @@ export default function ClosingPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        tenantId: session.selectedTenantId,
-        userId: session.userId,
+        tenantId: selectedTenant,
+        userId: session?.userId,
         cashSessionId: cashSession?.id ?? null,
         summary,
         expectedCash,
@@ -61,6 +71,18 @@ export default function ClosingPage() {
     })
     setSubmitted(true)
     setSubmitting(false)
+  }
+
+  if (!session?.selectedTenantId && !selectedTenant) {
+    return (
+      <div>
+        <TenantPicker tenants={tenants} selected={selectedTenant} onSelect={id => { setLoading(true); setSelectedTenant(id) }} />
+        <div className="text-center py-20 text-gray-400">
+          <p className="text-5xl mb-3">🏪</p>
+          <p className="font-medium">Pilih tenant dulu</p>
+        </div>
+      </div>
+    )
   }
 
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" /></div>
@@ -83,6 +105,7 @@ export default function ClosingPage() {
 
   return (
     <div className="max-w-md mx-auto px-4 py-4">
+      {!session?.selectedTenantId && <TenantPicker tenants={tenants} selected={selectedTenant} onSelect={id => { setLoading(true); setSelectedTenant(id) }} />}
       <h1 className="text-xl font-bold mb-1">Closing Report</h1>
       <p className="text-sm text-gray-500 mb-4">{new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
 

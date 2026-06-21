@@ -1,7 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import TenantPicker from '@/components/TenantPicker'
 import type { SessionPayload } from '@/types'
+
+interface Tenant { id: string; name: string; color: string }
 
 // ============================================================
 // Kitchen Display System (KDS)
@@ -40,6 +43,8 @@ function channelIcon(channel: string): string {
 
 export default function KitchenPage() {
   const [session, setSession] = useState<SessionPayload | null>(null)
+  const [tenants, setTenants] = useState<Tenant[]>([])
+  const [selectedTenant, setSelectedTenant] = useState('')
   const [queue, setQueue]     = useState<QueueItem[]>([])
   const [loading, setLoading] = useState(true)
   const [now, setNow]         = useState(Date.now())
@@ -51,16 +56,21 @@ export default function KitchenPage() {
   }, [])
 
   useEffect(() => {
-    fetch('/api/auth/session').then(r => r.json()).then(d => setSession(d.session))
+    fetch('/api/auth/session').then(r => r.json()).then(d => {
+      setSession(d.session)
+      if (d.session?.selectedTenantId) setSelectedTenant(d.session.selectedTenantId)
+      else setLoading(false)
+    })
+    fetch('/api/tenants').then(r => r.json()).then(d => setTenants(d.tenants ?? []))
   }, [])
 
   useEffect(() => {
-    if (!session?.selectedTenantId) return
-    loadQueue(session.selectedTenantId)
+    if (!selectedTenant) return
+    loadQueue(selectedTenant)
     // Polling tiap 5 detik (RLS blokir Supabase Realtime untuk session PIN-based)
-    const t = setInterval(() => loadQueue(session.selectedTenantId!), 5000)
+    const t = setInterval(() => loadQueue(selectedTenant), 5000)
     return () => clearInterval(t)
-  }, [session])
+  }, [selectedTenant])
 
   async function loadQueue(tenantId: string) {
     const res = await fetch(`/api/kitchen?tenantId=${tenantId}`)
@@ -75,12 +85,25 @@ export default function KitchenPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ queueId, orderId, status: newStatus }),
     })
-    if (session?.selectedTenantId) loadQueue(session.selectedTenantId)
+    if (selectedTenant) loadQueue(selectedTenant)
   }
 
   const waiting  = queue.filter(q => q.status === 'waiting')
   const cooking  = queue.filter(q => q.status === 'cooking')
   const qaReady  = queue.filter(q => q.status === 'qa_pending')
+
+  // Pilih tenant dulu (untuk owner/supervisor yang tidak punya home tenant tetap)
+  if (!session?.selectedTenantId && !selectedTenant) {
+    return (
+      <div>
+        <TenantPicker tenants={tenants} selected={selectedTenant} onSelect={id => { setLoading(true); setSelectedTenant(id) }} />
+        <div className="text-center py-20 text-gray-400">
+          <p className="text-5xl mb-3">🏪</p>
+          <p className="font-medium">Pilih tenant dulu</p>
+        </div>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
@@ -124,7 +147,9 @@ export default function KitchenPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 py-4">
+    <div>
+      {!session?.selectedTenantId && <TenantPicker tenants={tenants} selected={selectedTenant} onSelect={id => { setLoading(true); setSelectedTenant(id) }} />}
+      <div className="max-w-md mx-auto px-4 py-4">
       {/* Header realtime indicator */}
       <div className="flex items-center gap-2 mb-4">
         <div className="w-2 h-2 bg-green-500 rounded-full pulse-dot" />
@@ -188,6 +213,7 @@ export default function KitchenPage() {
           ))}
         </div>
       )}
+      </div>
     </div>
   )
 }

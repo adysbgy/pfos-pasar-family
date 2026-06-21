@@ -1,7 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import TenantPicker from '@/components/TenantPicker'
 import type { SessionPayload } from '@/types'
+
+interface Tenant { id: string; name: string; color: string }
 
 // ============================================================
 // Halaman Inventory & Stok
@@ -46,6 +49,8 @@ const TX_TYPE_CONFIG: Record<TxType, { label: string; icon: string; sign: string
 
 export default function InventoryPage() {
   const [session, setSession]           = useState<SessionPayload | null>(null)
+  const [tenants, setTenants]           = useState<Tenant[]>([])
+  const [selectedTenant, setSelectedTenant] = useState('')
   const [items, setItems]               = useState<InventoryItem[]>([])
   const [loading, setLoading]           = useState(true)
   const [activeCategory, setCategory]   = useState<string>('all')
@@ -69,17 +74,22 @@ export default function InventoryPage() {
   const [newInitQty, setNewInitQty]   = useState('0')
 
   useEffect(() => {
-    fetch('/api/auth/session').then(r => r.json()).then(d => setSession(d.session))
+    fetch('/api/auth/session').then(r => r.json()).then(d => {
+      setSession(d.session)
+      if (d.session?.selectedTenantId) setSelectedTenant(d.session.selectedTenantId)
+      else setLoading(false)
+    })
+    fetch('/api/tenants').then(r => r.json()).then(d => setTenants(d.tenants ?? []))
   }, [])
 
   useEffect(() => {
-    if (session?.selectedTenantId) loadItems()
-  }, [session])
+    if (selectedTenant) loadItems()
+  }, [selectedTenant])
 
   async function loadItems() {
-    if (!session?.selectedTenantId) return
+    if (!selectedTenant) return
     setLoading(true)
-    const res = await fetch(`/api/inventory?tenantId=${session.selectedTenantId}`)
+    const res = await fetch(`/api/inventory?tenantId=${selectedTenant}`)
     const data = await res.json()
     setItems(data.items ?? [])
     setLoading(false)
@@ -143,7 +153,7 @@ export default function InventoryPage() {
   }
 
   async function handleAddItem() {
-    if (!newName.trim() || !session?.selectedTenantId) return
+    if (!newName.trim() || !selectedTenant) return
     setSubmitting(true)
     try {
       const res = await fetch('/api/inventory', {
@@ -151,7 +161,7 @@ export default function InventoryPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'create_item',
-          tenantId: session.selectedTenantId,
+          tenantId: selectedTenant,
           name: newName.trim(),
           unit: newUnit,
           category: newCategory,
@@ -377,6 +387,18 @@ export default function InventoryPage() {
   }
 
   // ── View: List ────────────────────────────────────────────
+  if (!session?.selectedTenantId && !selectedTenant) {
+    return (
+      <div>
+        <TenantPicker tenants={tenants} selected={selectedTenant} onSelect={id => { setLoading(true); setSelectedTenant(id) }} />
+        <div className="text-center py-20 text-gray-400">
+          <p className="text-5xl mb-3">🏪</p>
+          <p className="font-medium">Pilih tenant dulu</p>
+        </div>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -389,6 +411,7 @@ export default function InventoryPage() {
 
   return (
     <div className="max-w-md mx-auto">
+      {!session?.selectedTenantId && <TenantPicker tenants={tenants} selected={selectedTenant} onSelect={id => { setLoading(true); setSelectedTenant(id) }} />}
       {/* Header */}
       <div className="px-4 pt-4 pb-2 flex items-center justify-between">
         <div>
