@@ -37,6 +37,7 @@ export default function POSPage() {
   const [activeCategory, setActiveCategory] = useState<string>('all')
   const [cart, setCart]                     = useState<CartItem[]>([])
   const [channel, setChannel]               = useState<OrderChannel>('dine_in')
+  const [tableNumber, setTableNumber]       = useState<string>('')
   const [view, setView]                     = useState<View>('menu')
   const [paymentMethod, setPaymentMethod]   = useState<PaymentMethod>('cash')
   const [cashInput, setCashInput]           = useState('')
@@ -100,6 +101,7 @@ export default function POSPage() {
           channel,
           items: cart.map(c => ({ menuItemId: c.menuItem.id, quantity: c.quantity, unitPrice: c.menuItem.price })),
           paymentMethod,
+          tableNumber: channel === 'dine_in' ? tableNumber : undefined,
           amountReceived: paymentMethod === 'cash' ? cashReceived : cartTotal,
         }),
       })
@@ -283,6 +285,25 @@ export default function POSPage() {
           </button>
         ))}
       </div>
+      {/* Nomor Meja — hanya untuk dine_in */}
+      {channel === 'dine_in' && (
+        <div className="bg-white px-4 py-2 border-b border-gray-100 flex items-center gap-2">
+          <span className="text-sm text-gray-500 flex-shrink-0">Meja:</span>
+          <div className="flex gap-1.5 overflow-x-auto">
+            {['1','2','3','4','5','6','7','8'].map(n => (
+              <button key={n} onClick={() => setTableNumber(tableNumber === n ? '' : n)}
+                className={`flex-shrink-0 w-9 h-9 rounded-lg text-sm font-bold border-2 transition-all
+                  ${tableNumber === n ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-200 text-gray-700'}`}>
+                {n}
+              </button>
+            ))}
+            <input type="tel" inputMode="numeric" placeholder="?" value={tableNumber}
+              onChange={e => setTableNumber(e.target.value.replace(/\D/g,''))}
+              className="flex-shrink-0 w-12 h-9 border-2 border-gray-200 rounded-lg text-center text-sm font-bold focus:border-gray-900 outline-none" />
+          </div>
+        </div>
+      )}
+
       {/* Kategori */}
       <div className="bg-white px-4 py-2 border-b border-gray-100 flex gap-2 overflow-x-auto">
         <button onClick={() => setActiveCategory('all')}

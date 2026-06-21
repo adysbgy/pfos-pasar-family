@@ -20,6 +20,7 @@ interface CreateOrderBody {
   amountReceived?: number   // untuk cash
   qrisReference?: string    // opsional dari GoPay
   customerName?: string
+  tableNumber?: string      // Sprint 3: nomor meja untuk dine_in
   notes?: string
 }
 
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json() as CreateOrderBody
-    const { tenantId, channel, items, paymentMethod, amountReceived, qrisReference, customerName, notes } = body
+    const { tenantId, channel, items, paymentMethod, amountReceived, qrisReference, customerName, tableNumber, notes } = body
 
     if (!tenantId || !channel || !items?.length || !paymentMethod) {
       return NextResponse.json({ error: 'Data order tidak lengkap' }, { status: 400 })
@@ -82,6 +83,7 @@ export async function POST(request: Request) {
         discount: 0,
         total,
         customer_name: customerName,
+        table_number: tableNumber || null,
         notes,
         kasir_id: session.userId,
       })
@@ -160,6 +162,10 @@ export async function POST(request: Request) {
       action: 'order_input',
       reference_id: order.id,
     })
+
+    // 10. Auto-deduct inventory berdasarkan resep (Sprint 3)
+    supabase.rpc('deduct_inventory_for_order', { p_order_id: order.id })
+      .then(({ error }) => { if (error) console.error('deduct_inventory error:', error) })
 
     return NextResponse.json({
       success: true,

@@ -21,6 +21,7 @@ interface QueueItem {
   order: {
     order_number: string
     channel: string
+    table_number: string | null
     notes: string | null
     created_at: string
     order_items: {
@@ -124,6 +125,11 @@ export default function KitchenPage() {
           <div>
             <span className="text-lg font-bold text-gray-900">{item.order.order_number}</span>
             <span className="ml-2 text-lg">{channelIcon(item.order.channel)}</span>
+            {item.order.channel === 'dine_in' && item.order.table_number && (
+              <span className="ml-2 bg-yellow-400 text-yellow-900 font-bold text-sm px-2 py-0.5 rounded-lg">
+                Meja {item.order.table_number}
+              </span>
+            )}
           </div>
           <span className={`text-sm font-medium ${isUrgent ? 'text-red-600' : 'text-gray-500'}`}>
             {elapsed !== null ? `⏱ ${elapsed} mnt` : `⏳ ${waitElapsed} mnt`}

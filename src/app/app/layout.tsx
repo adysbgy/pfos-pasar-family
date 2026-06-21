@@ -12,17 +12,18 @@ import type { SessionPayload, RoleName } from '@/types'
 // Navigasi per role
 const NAV_BY_ROLE: Record<RoleName, { href: string; icon: string; label: string }[]> = {
   owner: [
-    { href: '/app/dashboard', icon: '📊', label: 'Dashboard' },
-    { href: '/app/pos',       icon: '🛒', label: 'POS' },
-    { href: '/app/menu',      icon: '🍽️', label: 'Menu' },
-    { href: '/app/inventory', icon: '📦', label: 'Stok' },
-    { href: '/app/reports',   icon: '📈', label: 'Laporan' },
+    { href: '/app/dashboard',  icon: '📊', label: 'Dashboard' },
+    { href: '/app/pos',        icon: '🛒', label: 'POS' },
+    { href: '/app/inventory',  icon: '📦', label: 'Stok' },
+    { href: '/app/reports',    icon: '📈', label: 'Laporan' },
+    { href: '/app/complaints', icon: '🚨', label: 'Insiden' },
   ],
   supervisor: [
-    { href: '/app/qa',        icon: '✅', label: 'QA' },
-    { href: '/app/inventory', icon: '📦', label: 'Stok' },
-    { href: '/app/reports',   icon: '📈', label: 'Laporan' },
-    { href: '/app/tasks',     icon: '📋', label: 'Tugas' },
+    { href: '/app/qa',         icon: '✅', label: 'QA' },
+    { href: '/app/complaints', icon: '🚨', label: 'Insiden' },
+    { href: '/app/inventory',  icon: '📦', label: 'Stok' },
+    { href: '/app/reports',    icon: '📈', label: 'Laporan' },
+    { href: '/app/tasks',      icon: '📋', label: 'Tugas' },
   ],
   kasir: [
     { href: '/app/pos',       icon: '🛒', label: 'POS' },
@@ -34,8 +35,9 @@ const NAV_BY_ROLE: Record<RoleName, { href: string; icon: string; label: string 
     { href: '/app/tasks',     icon: '📋', label: 'Tugas' },
   ],
   qa_checker: [
-    { href: '/app/qa',        icon: '✅', label: 'QA' },
-    { href: '/app/tasks',     icon: '📋', label: 'Tugas' },
+    { href: '/app/qa',         icon: '✅', label: 'QA' },
+    { href: '/app/complaints', icon: '🚨', label: 'Insiden' },
+    { href: '/app/tasks',      icon: '📋', label: 'Tugas' },
   ],
   marketing_admin: [
     { href: '/app/dashboard', icon: '📊', label: 'Dashboard' },

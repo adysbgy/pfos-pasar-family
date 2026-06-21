@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     .select(`
       id, order_id, status, started_at, done_at,
       order:orders(
-        order_number, channel, notes, created_at,
+        order_number, channel, table_number, notes, created_at,
         order_items(quantity, menu_item:menu_items(name))
       )
     `)

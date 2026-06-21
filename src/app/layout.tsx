@@ -4,8 +4,15 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'PFOS — Pasar Family Operating System',
   description: 'Sistem operasional Pasar Family',
-  // PWA manifest (tambahkan /public/manifest.json nanti)
-  // manifest: '/manifest.json',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'PFOS',
+  },
+  other: {
+    'mobile-web-app-capable': 'yes',
+  },
 }
 
 export const viewport: Viewport = {
