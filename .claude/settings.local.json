@@ -31,7 +31,25 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(~/bin/gh repo *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(npx vercel *)",
+      "Bash(vercel project *)",
+      "Bash(vercel link *)",
+      "Bash(vercel env *)",
+      "Bash(vercel deploy *)",
+      "Bash(vercel domains *)",
+      "Bash(dig +short pasarfamily.my.id A)",
+      "Bash(dig +short pasarfamily.my.id CNAME)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -I https://pasarfamily.my.id)",
+      "Bash(curl -sI https://pasarfamily.my.id)",
+      "Bash(curl -sL https://pasarfamily.my.id/app/login)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://pasarfamily.my.id/app/login)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://pasarfamily.my.id/api/users)",
+      "mcp__Claude_in_Chrome__navigate",
+      "Bash(curl -s -X POST https://pasarfamily.my.id/api/auth/pin -H \"Content-Type: application/json\" -d '{\"userId\":\"33333333-0000-0000-0000-000000000003\",\"pin\":\"123456\"}' -D - -o /tmp/pin_resp.json)",
+      "Bash(curl -s https://pasarfamily.my.id/api/menu?tenantId=11111111-0000-0000-0000-000000000001 -b /tmp/pin_resp.json -c /tmp/cookies.txt)",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s \"https://pasarfamily.my.id/api/menu?tenantId=11111111-0000-0000-0000-000000000001\")"
     ]
   }
 }
