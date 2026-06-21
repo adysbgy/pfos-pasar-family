@@ -15,14 +15,14 @@ const NAV_BY_ROLE: Record<RoleName, { href: string; icon: string; label: string 
     { href: '/app/dashboard', icon: '📊', label: 'Dashboard' },
     { href: '/app/pos',       icon: '🛒', label: 'POS' },
     { href: '/app/inventory', icon: '📦', label: 'Stok' },
-    { href: '/app/qa',        icon: '✅', label: 'QA' },
+    { href: '/app/reports',   icon: '📈', label: 'Laporan' },
     { href: '/app/tasks',     icon: '📋', label: 'Tugas' },
   ],
   supervisor: [
     { href: '/app/qa',        icon: '✅', label: 'QA' },
     { href: '/app/inventory', icon: '📦', label: 'Stok' },
+    { href: '/app/reports',   icon: '📈', label: 'Laporan' },
     { href: '/app/tasks',     icon: '📋', label: 'Tugas' },
-    { href: '/app/dashboard', icon: '📊', label: 'Laporan' },
   ],
   kasir: [
     { href: '/app/pos',       icon: '🛒', label: 'POS' },
