@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import type { SessionPayload } from '@/types'
 
 // ============================================================
@@ -29,7 +28,6 @@ const CHECKS = [
 type CheckKey = typeof CHECKS[number]['key']
 
 export default function QAPage() {
-  const supabase = createClient()
   const [session, setSession]       = useState<SessionPayload | null>(null)
   const [pendingOrders, setPending] = useState<QAOrder[]>([])
   const [loading, setLoading]       = useState(true)
@@ -46,26 +44,15 @@ export default function QAPage() {
   useEffect(() => {
     if (!session?.selectedTenantId) return
     loadPending(session.selectedTenantId)
-    const ch = supabase.channel('qa-rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'kitchen_queue',
-        filter: `tenant_id=eq.${session.selectedTenantId}` }, () => loadPending(session.selectedTenantId!))
-      .subscribe()
-    return () => { supabase.removeChannel(ch) }
+    // Polling tiap 5 detik (RLS blokir Supabase Realtime untuk session PIN-based)
+    const t = setInterval(() => loadPending(session.selectedTenantId!), 5000)
+    return () => clearInterval(t)
   }, [session])
 
   async function loadPending(tenantId: string) {
-    const { data } = await supabase
-      .from('kitchen_queue')
-      .select('id, order_id, order:orders(id, order_number, notes, order_items(quantity, menu_item:menu_items(name)))')
-      .eq('tenant_id', tenantId)
-      .eq('status', 'qa_pending')
-    const mapped = (data ?? []).map((row: any) => ({
-      id: row.order.id, queueId: row.id,
-      order_number: row.order.order_number,
-      order_items: row.order.order_items,
-      notes: row.order.notes,
-    }))
-    setPending(mapped)
+    const res = await fetch(`/api/qa?tenantId=${tenantId}`)
+    const data = await res.json()
+    setPending(data.orders ?? [])
     setLoading(false)
   }
 
@@ -75,20 +62,15 @@ export default function QAPage() {
   async function submitQA(result: 'pass' | 'fail') {
     if (!active || !session) return
     setSubmitting(true)
-    await supabase.from('qa_checks').insert({
-      order_id: active.id, checker_id: session.userId,
-      ...Object.fromEntries(CHECKS.map(c => [c.key, checks[c.key] ?? null])),
-      notes: notes || null, result,
+    await fetch('/api/qa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        orderId: active.id, queueId: active.queueId, orderNumber: active.order_number,
+        checks: Object.fromEntries(CHECKS.map(c => [c.key, checks[c.key] ?? null])),
+        notes: notes || null, result,
+      }),
     })
-    await supabase.from('kitchen_queue').update({ status: 'done' }).eq('id', active.queueId)
-    await supabase.from('orders').update({ status: result === 'pass' ? 'ready' : 'cancelled' }).eq('id', active.id)
-    if (result === 'fail') {
-      await supabase.from('dashboard_alerts').insert({
-        tenant_id: session.selectedTenantId, type: 'qa_fail', severity: 'red',
-        message: `QA FAIL: Order ${active.order_number} — ${notes || 'tidak ada catatan'}`,
-        reference_id: active.id,
-      })
-    }
     setDoneCount(n => n + 1)
     setActive(null)
     loadPending(session.selectedTenantId!)

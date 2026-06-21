@@ -1,12 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { formatRupiah } from '@/types'
 import type { DashboardAlert } from '@/types'
 
 export default function DashboardPage() {
-  const supabase = createClient()
   const [loading, setLoading]         = useState(true)
   const [summary, setSummary]         = useState<any>(null)
   const [alerts, setAlerts]           = useState<DashboardAlert[]>([])
@@ -15,54 +13,27 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadDashboard()
-    const interval = setInterval(loadDashboard, 60000) // refresh setiap 1 menit
-    const ch = supabase.channel('dashboard-rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'dashboard_alerts' }, loadDashboard)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, loadDashboard)
-      .subscribe()
-    return () => { clearInterval(interval); supabase.removeChannel(ch) }
+    // Polling tiap 15 detik (RLS blokir Supabase Realtime untuk session PIN-based)
+    const interval = setInterval(loadDashboard, 15000)
+    return () => clearInterval(interval)
   }, [])
 
   async function loadDashboard() {
-    const today = new Date().toISOString().split('T')[0]
-
-    const [alertRes, tenantRes, ordersRes, closingRes] = await Promise.all([
-      supabase.from('dashboard_alerts').select('*').eq('is_resolved', false).order('created_at', { ascending: false }).limit(20),
-      supabase.from('tenants').select('id, name, color, slug').eq('status', 'active').order('sort_order'),
-      supabase.from('orders').select('tenant_id, total, payment_method, status, channel').gte('created_at', today),
-      supabase.from('closing_reports').select('tenant_id').eq('date', today),
-    ])
-
-    const orders = ordersRes.data ?? []
-    const completed = orders.filter((o: any) => ['completed','ready'].includes(o.status))
-    const tenants   = tenantRes.data ?? []
-    const closedIds = new Set((closingRes.data ?? []).map((r: any) => r.tenant_id))
-
-    const stats = tenants.map((t: any) => {
-      const tOrders = completed.filter((o: any) => o.tenant_id === t.id)
-      return {
-        ...t,
-        orders:  tOrders.length,
-        revenue: tOrders.reduce((s: number, o: any) => s + o.total, 0),
-        closed:  closedIds.has(t.id),
-      }
-    })
-
-    setAlerts(alertRes.data ?? [])
-    setTenantStats(stats)
-    setClosingStatus(stats)
-    setSummary({
-      totalOrders:  completed.length,
-      totalRevenue: completed.reduce((s: number, o: any) => s + o.total, 0),
-      totalCash:    completed.filter((o: any) => o.payment_method === 'cash').reduce((s: number, o: any) => s + o.total, 0),
-      totalQris:    completed.filter((o: any) => o.payment_method === 'qris').reduce((s: number, o: any) => s + o.total, 0),
-      unreadAlerts: (alertRes.data ?? []).filter((a: any) => !a.is_read).length,
-    })
+    const res = await fetch('/api/dashboard')
+    const data = await res.json()
+    setAlerts(data.alerts ?? [])
+    setTenantStats(data.tenantStats ?? [])
+    setClosingStatus(data.tenantStats ?? [])
+    setSummary(data.summary)
     setLoading(false)
   }
 
   async function resolveAlert(id: string) {
-    await supabase.from('dashboard_alerts').update({ is_resolved: true, is_read: true }).eq('id', id)
+    await fetch('/api/dashboard', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
     setAlerts(prev => prev.filter(a => a.id !== id))
   }
 

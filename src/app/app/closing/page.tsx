@@ -1,12 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { formatRupiah } from '@/types'
 import type { SessionPayload } from '@/types'
 
 export default function ClosingPage() {
-  const supabase = createClient()
   const [session, setSession]       = useState<SessionPayload | null>(null)
   const [loading, setLoading]       = useState(true)
   const [summary, setSummary]       = useState<any>(null)
@@ -27,32 +25,10 @@ export default function ClosingPage() {
   }, [session])
 
   async function loadData(tenantId: string) {
-    const today = new Date().toISOString().split('T')[0]
-
-    const [ordersRes, cashRes] = await Promise.all([
-      supabase.from('orders').select('id, channel, payment_method, total, status').eq('tenant_id', tenantId).gte('created_at', today),
-      supabase.from('cash_sessions').select('*').eq('tenant_id', tenantId).eq('date', today).single(),
-    ])
-
-    const orders = ordersRes.data ?? []
-    const completed = orders.filter((o: any) => o.status === 'completed' || o.status === 'ready')
-
-    const expRes = cashRes.data
-      ? await supabase.from('cash_expenses').select('amount').eq('session_id', cashRes.data.id)
-      : { data: [] }
-    const totalExpenses = (expRes.data ?? []).reduce((s: number, e: any) => s + e.amount, 0)
-
-    setSummary({
-      totalOrders:   completed.length,
-      grossSales:    completed.reduce((s: number, o: any) => s + o.total, 0),
-      totalCash:     completed.filter((o: any) => o.payment_method === 'cash').reduce((s: number, o: any) => s + o.total, 0),
-      totalQris:     completed.filter((o: any) => o.payment_method === 'qris').reduce((s: number, o: any) => s + o.total, 0),
-      dineIn:        completed.filter((o: any) => o.channel === 'dine_in').length,
-      takeaway:      completed.filter((o: any) => o.channel === 'takeaway').length,
-      delivery:      completed.filter((o: any) => ['gofood','grabfood','shopeefood','whatsapp'].includes(o.channel)).length,
-      totalExpenses,
-    })
-    setCashSession(cashRes.data)
+    const res = await fetch(`/api/closing?tenantId=${tenantId}`)
+    const data = await res.json()
+    setSummary(data.summary)
+    setCashSession(data.cashSession)
     setLoading(false)
   }
 
@@ -68,47 +44,21 @@ export default function ClosingPage() {
       return
     }
     setSubmitting(true)
-    const today = new Date().toISOString().split('T')[0]
-
-    // Close cash session
-    if (cashSession) {
-      await supabase.from('cash_sessions').update({
-        closer_id: session.userId,
-        closing_cash_expected: expectedCash,
-        closing_cash_actual: parseInt(actualCash) || 0,
+    await fetch('/api/closing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenantId: session.selectedTenantId,
+        userId: session.userId,
+        cashSessionId: cashSession?.id ?? null,
+        summary,
+        expectedCash,
+        actualCash: parseInt(actualCash) || 0,
+        qrisTotal: parseInt(qrisTotal) || 0,
         selisih,
-        selisih_notes: selisihNotes || null,
-        qris_total_reported: parseInt(qrisTotal) || 0,
-        status: 'closed',
-        closed_at: new Date().toISOString(),
-      }).eq('id', cashSession.id)
-    }
-
-    // Insert closing report
-    await supabase.from('closing_reports').insert({
-      tenant_id: session.selectedTenantId,
-      date: today,
-      submitter_id: session.userId,
-      total_orders:   summary.totalOrders,
-      total_dine_in:  summary.dineIn,
-      total_takeaway: summary.takeaway,
-      total_delivery: summary.delivery,
-      total_cash:     summary.totalCash,
-      total_qris:     summary.totalQris,
-      gross_sales:    summary.grossSales,
-      cash_session_id: cashSession?.id,
+        selisihNotes: selisihNotes || null,
+      }),
     })
-
-    // Alert jika selisih besar
-    if (Math.abs(selisih) > 10000) {
-      await supabase.from('dashboard_alerts').insert({
-        tenant_id: session.selectedTenantId,
-        type: 'cash_selisih',
-        severity: 'red',
-        message: `Selisih kas ${selisih > 0 ? '+' : ''}${formatRupiah(selisih)} — ${selisihNotes}`,
-      })
-    }
-
     setSubmitted(true)
     setSubmitting(false)
   }

@@ -1,11 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import type { SessionPayload, StaffTask, RoleName } from '@/types'
 
 export default function TasksPage() {
-  const supabase = createClient()
   const [session, setSession]     = useState<SessionPayload | null>(null)
   const [tasks, setTasks]         = useState<StaffTask[]>([])
   const [loading, setLoading]     = useState(true)
@@ -23,46 +21,31 @@ export default function TasksPage() {
 
   async function loadTasks() {
     if (!session) return
-    let query = supabase
-      .from('staff_tasks')
-      .select('*')
-      .in('status', ['pending'])
-      .order('due_time', { ascending: true, nullsFirst: false })
-      .order('created_at', { ascending: false })
-
-    // Owner & supervisor lihat semua; staff lain lihat tugas mereka sendiri
-    const isManager = ['owner', 'supervisor'].includes(session.primaryRole as RoleName)
-    if (!isManager) {
-      query = query.or(`assigned_to.eq.${session.userId},assigned_to.is.null`)
-    }
-    if (session.selectedTenantId) {
-      query = query.or(`tenant_id.eq.${session.selectedTenantId},tenant_id.is.null`)
-    }
-
-    const { data } = await query
-    setTasks(data ?? [])
+    const res = await fetch('/api/tasks')
+    const data = await res.json()
+    setTasks(data.tasks ?? [])
     setLoading(false)
   }
 
   async function markDone(taskId: string) {
-    await supabase.from('staff_tasks').update({
-      status: 'done',
-      completed_at: new Date().toISOString(),
-    }).eq('id', taskId)
+    await fetch('/api/tasks', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskId }),
+    })
     setTasks(prev => prev.filter(t => t.id !== taskId))
   }
 
   async function addTask() {
     if (!newTitle.trim() || !session) return
     setSubmitting(true)
-    const { data } = await supabase.from('staff_tasks').insert({
-      tenant_id:   session.selectedTenantId,
-      assigned_by: session.userId,
-      title:       newTitle.trim(),
-      type:        'manual',
-      status:      'pending',
-    }).select().single()
-    if (data) setTasks(prev => [data, ...prev])
+    const res = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'add', title: newTitle.trim() }),
+    })
+    const data = await res.json()
+    if (data.task) setTasks(prev => [data.task, ...prev])
     setNewTitle('')
     setSubmitting(false)
   }
@@ -157,12 +140,10 @@ export default function TasksPage() {
             <button key={item.type}
               onClick={async () => {
                 if (!session?.selectedTenantId) return
-                await supabase.from('complaints').insert({
-                  tenant_id:   session.selectedTenantId,
-                  reporter_id: session.userId,
-                  type:        item.type,
-                  description: `Dilaporkan oleh ${session.name}`,
-                  severity:    'medium',
+                await fetch('/api/tasks', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action: 'complaint', type: item.type, label: item.label }),
                 })
                 alert(`✅ Insiden "${item.label}" tercatat!`)
               }}

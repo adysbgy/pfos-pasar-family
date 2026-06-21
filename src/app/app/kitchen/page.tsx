@@ -1,13 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import type { SessionPayload } from '@/types'
 
 // ============================================================
 // Kitchen Display System (KDS)
 // Role: kitchen, supervisor, owner
-// Realtime: subscribe ke kitchen_queue + orders
+// Live update: polling /api/kitchen tiap 5 detik
 // ============================================================
 
 interface QueueItem {
@@ -40,7 +39,6 @@ function channelIcon(channel: string): string {
 }
 
 export default function KitchenPage() {
-  const supabase = createClient()
   const [session, setSession] = useState<SessionPayload | null>(null)
   const [queue, setQueue]     = useState<QueueItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -59,48 +57,25 @@ export default function KitchenPage() {
   useEffect(() => {
     if (!session?.selectedTenantId) return
     loadQueue(session.selectedTenantId)
-    // Realtime subscription
-    const channel = supabase
-      .channel('kitchen-queue')
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'kitchen_queue',
-        filter: `tenant_id=eq.${session.selectedTenantId}`
-      }, () => loadQueue(session.selectedTenantId!))
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    // Polling tiap 5 detik (RLS blokir Supabase Realtime untuk session PIN-based)
+    const t = setInterval(() => loadQueue(session.selectedTenantId!), 5000)
+    return () => clearInterval(t)
   }, [session])
 
   async function loadQueue(tenantId: string) {
-    const { data } = await supabase
-      .from('kitchen_queue')
-      .select(`
-        id, order_id, status, started_at, done_at,
-        order:orders(
-          order_number, channel, notes, created_at,
-          order_items(quantity, menu_item:menu_items(name))
-        )
-      `)
-      .eq('tenant_id', tenantId)
-      .in('status', ['waiting', 'cooking', 'qa_pending'])
-      .order('done_at', { ascending: true, nullsFirst: true })
-
-    setQueue((data as unknown as QueueItem[]) ?? [])
+    const res = await fetch(`/api/kitchen?tenantId=${tenantId}`)
+    const data = await res.json()
+    setQueue(data.queue ?? [])
     setLoading(false)
   }
 
   async function updateStatus(queueId: string, orderId: string, newStatus: QueueItem['status']) {
-    const updates: Record<string, unknown> = { status: newStatus }
-    if (newStatus === 'cooking') updates.started_at = new Date().toISOString()
-    if (newStatus === 'qa_pending') updates.done_at = new Date().toISOString()
-
-    await supabase.from('kitchen_queue').update(updates).eq('id', queueId)
-
-    // Sync status order
-    const orderStatus =
-      newStatus === 'cooking'    ? 'cooking'    :
-      newStatus === 'qa_pending' ? 'qa_pending' :
-      newStatus === 'done'       ? 'ready'      : 'pending'
-    await supabase.from('orders').update({ status: orderStatus }).eq('id', orderId)
+    await fetch('/api/kitchen', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ queueId, orderId, status: newStatus }),
+    })
+    if (session?.selectedTenantId) loadQueue(session.selectedTenantId)
   }
 
   const waiting  = queue.filter(q => q.status === 'waiting')

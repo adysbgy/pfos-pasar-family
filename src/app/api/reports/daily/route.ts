@@ -54,7 +54,7 @@ export async function GET(request: Request) {
     // Aggregate per menu item per tenant
     const agg: Record<string, { name: string; tenant_id: string; total_qty: number }> = {}
     items?.forEach(item => {
-      const mi = item.menu_item as { name: string; tenant_id: string } | null
+      const mi = item.menu_item as unknown as { name: string; tenant_id: string } | null
       if (!mi) return
       const key = `${mi.tenant_id}::${mi.name}`
       if (!agg[key]) agg[key] = { name: mi.name, tenant_id: mi.tenant_id, total_qty: 0 }

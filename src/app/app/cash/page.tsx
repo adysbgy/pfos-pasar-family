@@ -1,12 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { formatRupiah } from '@/types'
 import type { SessionPayload, CashSession } from '@/types'
 
 export default function CashPage() {
-  const supabase = createClient()
   const [session, setSession]         = useState<SessionPayload | null>(null)
   const [cashSession, setCashSession] = useState<CashSession | null>(null)
   const [loading, setLoading]         = useState(true)
@@ -26,43 +24,42 @@ export default function CashPage() {
   }, [session])
 
   async function loadSession(tenantId: string) {
-    const today = new Date().toISOString().split('T')[0]
-    const { data: cs } = await supabase
-      .from('cash_sessions').select('*').eq('tenant_id', tenantId).eq('date', today).single()
-    setCashSession(cs)
-    if (cs) {
-      const { data: exp } = await supabase.from('cash_expenses').select('*').eq('session_id', cs.id).order('created_at', { ascending: false })
-      setExpenses(exp ?? [])
-    }
+    const res = await fetch(`/api/cash?tenantId=${tenantId}`)
+    const data = await res.json()
+    setCashSession(data.cashSession)
+    setExpenses(data.expenses ?? [])
     setLoading(false)
   }
 
   async function openSession() {
     if (!session?.selectedTenantId) return
     setSubmitting(true)
-    const today = new Date().toISOString().split('T')[0]
-    const { data } = await supabase.from('cash_sessions').insert({
-      tenant_id: session.selectedTenantId,
-      date: today,
-      opener_id: session.userId,
-      opening_cash: parseInt(openingCash) || 0,
-      cash_sales: 0,
-      status: 'open',
-    }).select().single()
-    setCashSession(data)
+    const res = await fetch('/api/cash', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'open', tenantId: session.selectedTenantId, userId: session.userId,
+        openingCash: parseInt(openingCash) || 0,
+      }),
+    })
+    const data = await res.json()
+    setCashSession(data.cashSession)
     setSubmitting(false)
   }
 
   async function addExpense() {
     if (!cashSession || !expenseAmt || !expenseDesc) return
     setSubmitting(true)
-    const { data } = await supabase.from('cash_expenses').insert({
-      session_id: cashSession.id,
-      amount: parseInt(expenseAmt),
-      description: expenseDesc,
-      created_by: session?.userId,
-    }).select().single()
-    setExpenses(prev => [data!, ...prev])
+    const res = await fetch('/api/cash', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'expense', sessionId: cashSession.id,
+        amount: parseInt(expenseAmt), description: expenseDesc, userId: session?.userId,
+      }),
+    })
+    const data = await res.json()
+    setExpenses(prev => [data.expense, ...prev])
     setExpenseAmt('')
     setExpenseDesc('')
     setSubmitting(false)
