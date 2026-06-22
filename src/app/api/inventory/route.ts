@@ -74,17 +74,21 @@ export async function POST(request: Request) {
   }
 
   // Adjust stok
-  const { itemId, type, qtyChange, notes } = body
+  const { itemId, type, qtyChange, notes, supplierId } = body
   if (!itemId || !type || qtyChange === undefined) {
     return NextResponse.json({ error: 'itemId, type, qtyChange wajib' }, { status: 400 })
   }
+  if (type === 'purchase' && !supplierId) {
+    return NextResponse.json({ error: 'Pilih supplier untuk transaksi pembelian' }, { status: 400 })
+  }
 
   const { data, error } = await supabase.rpc('adjust_inventory_stock', {
-    p_item_id:    itemId,
-    p_type:       type,
-    p_qty_change: parseInt(qtyChange),
-    p_notes:      notes ?? null,
-    p_user_id:    session.userId,
+    p_item_id:     itemId,
+    p_type:        type,
+    p_qty_change:  parseInt(qtyChange),
+    p_notes:       notes ?? null,
+    p_user_id:     session.userId,
+    p_supplier_id: type === 'purchase' ? supplierId : null,
   })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

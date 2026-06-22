@@ -33,6 +33,13 @@ interface InventoryTransaction {
   qty_after: number
   notes: string | null
   created_at: string
+  supplier?: { name: string } | null
+}
+
+interface Supplier {
+  id: string
+  name: string
+  phone: string | null
 }
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -68,6 +75,13 @@ export default function InventoryPage() {
   const [submitting, setSubmitting] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
 
+  // Supplier
+  const [suppliers, setSuppliers]   = useState<Supplier[]>([])
+  const [supplierId, setSupplierId] = useState('')
+  const [showAddSupplier, setShowAddSupplier] = useState(false)
+  const [newSupplierName, setNewSupplierName] = useState('')
+  const [newSupplierPhone, setNewSupplierPhone] = useState('')
+
   // Add item form
   const [newName, setNewName]         = useState('')
   const [newUnit, setNewUnit]         = useState('pcs')
@@ -89,7 +103,7 @@ export default function InventoryPage() {
   }, [])
 
   useEffect(() => {
-    if (selectedTenant) loadItems()
+    if (selectedTenant) { loadItems(); loadSuppliers() }
   }, [selectedTenant])
 
   async function loadItems() {
@@ -99,6 +113,32 @@ export default function InventoryPage() {
     const data = await res.json()
     setItems(data.items ?? [])
     setLoading(false)
+  }
+
+  async function loadSuppliers() {
+    if (!selectedTenant) return
+    const res = await fetch(`/api/suppliers?tenantId=${selectedTenant}`)
+    const data = await res.json()
+    setSuppliers(data.suppliers ?? [])
+  }
+
+  async function handleAddSupplier() {
+    if (!newSupplierName.trim() || !selectedTenant) return
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/suppliers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId: selectedTenant, name: newSupplierName.trim(), phone: newSupplierPhone.trim() || null }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setSuppliers(prev => [...prev, data.supplier].sort((a, b) => a.name.localeCompare(b.name)))
+        setSupplierId(data.supplier.id)
+        setNewSupplierName(''); setNewSupplierPhone(''); setShowAddSupplier(false)
+      } else alert(data.error ?? 'Gagal tambah supplier')
+    } catch { alert('Koneksi bermasalah.') }
+    finally { setSubmitting(false) }
   }
 
   async function loadHistory(itemId: string) {
@@ -114,6 +154,8 @@ export default function InventoryPage() {
     setTxType('purchase')
     setQtyInput('')
     setNotes('')
+    setSupplierId('')
+    setShowAddSupplier(false)
     setSuccessMsg('')
     setView('adjust')
   }
@@ -155,6 +197,7 @@ export default function InventoryPage() {
     if (!selectedItem || !qtyInput) return
     const qty = parseInt(qtyInput)
     if (isNaN(qty) || qty <= 0) return
+    if (txType === 'purchase' && !supplierId) return
 
     const isOut = txType === 'usage' || txType === 'waste'
     const actualQtyChange = isOut ? -qty : qty
@@ -169,6 +212,7 @@ export default function InventoryPage() {
           type: txType,
           qtyChange: actualQtyChange,
           notes: notes || null,
+          supplierId: txType === 'purchase' ? supplierId : null,
         }),
       })
       const data = await res.json()
@@ -176,6 +220,7 @@ export default function InventoryPage() {
         setSuccessMsg(`✅ Stok ${selectedItem.name}: ${data.result.qty_before} → ${data.result.qty_after} ${selectedItem.unit}`)
         setQtyInput('')
         setNotes('')
+        setSupplierId('')
         loadItems() // refresh list
       } else {
         alert('Error: ' + (data.error ?? 'Gagal'))
@@ -281,16 +326,48 @@ export default function InventoryPage() {
           </div>
         </div>
 
+        {/* Supplier — wajib untuk pembelian */}
+        {txType === 'purchase' && (
+          <div className="card mb-4">
+            <label className="text-sm font-medium text-gray-700 block mb-2">Supplier *</label>
+            {showAddSupplier ? (
+              <div className="space-y-2">
+                <input type="text" placeholder="Nama supplier" value={newSupplierName}
+                  onChange={e => setNewSupplierName(e.target.value)}
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-gray-900 outline-none text-sm" />
+                <input type="tel" placeholder="No. HP (opsional)" value={newSupplierPhone}
+                  onChange={e => setNewSupplierPhone(e.target.value)}
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-gray-900 outline-none text-sm" />
+                <div className="flex gap-2">
+                  <button onClick={() => setShowAddSupplier(false)} className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-gray-100 text-gray-700">Batal</button>
+                  <button onClick={handleAddSupplier} disabled={submitting || !newSupplierName.trim()}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-gray-900 text-white disabled:opacity-40">Simpan</button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <select value={supplierId} onChange={e => setSupplierId(e.target.value)}
+                  className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-gray-900 outline-none bg-white">
+                  <option value="">— Pilih supplier —</option>
+                  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+                <button onClick={() => setShowAddSupplier(true)}
+                  className="px-3 py-2.5 rounded-xl text-sm font-medium bg-gray-100 text-gray-700">+ Baru</button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Catatan */}
         <div className="card mb-4">
           <label className="text-sm font-medium text-gray-700 block mb-2">Catatan (opsional)</label>
-          <input type="text" placeholder="Contoh: Beli dari supplier X" value={notes}
+          <input type="text" placeholder="Contoh: kondisi barang saat terima" value={notes}
             onChange={e => setNotes(e.target.value)}
             className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-gray-900 outline-none text-sm" />
         </div>
 
         <button onClick={handleAdjust}
-          disabled={submitting || !qtyInput || parseInt(qtyInput) <= 0}
+          disabled={submitting || !qtyInput || parseInt(qtyInput) <= 0 || (txType === 'purchase' && !supplierId)}
           className="btn-primary w-full text-lg py-4 disabled:opacity-40">
           {submitting
             ? <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin inline-block" />
@@ -341,6 +418,7 @@ export default function InventoryPage() {
                       <p className="text-xs text-gray-500 mt-0.5">
                         {tx.qty_before} → {tx.qty_after} {selectedItem.unit}
                       </p>
+                      {tx.supplier?.name && <p className="text-xs text-gray-500 mt-0.5">🚚 {tx.supplier.name}</p>}
                       {tx.notes && <p className="text-xs text-gray-400 mt-0.5 truncate">{tx.notes}</p>}
                       <p className="text-xs text-gray-400 mt-0.5">
                         {new Date(tx.created_at).toLocaleDateString('id-ID', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}

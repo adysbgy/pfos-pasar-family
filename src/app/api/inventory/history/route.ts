@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('inventory_transactions')
-    .select('id, type, qty_change, qty_before, qty_after, notes, created_at')
+    .select('id, type, qty_change, qty_before, qty_after, notes, created_at, supplier:suppliers(name)')
     .eq('item_id', itemId)
     .order('created_at', { ascending: false })
     .limit(50)
