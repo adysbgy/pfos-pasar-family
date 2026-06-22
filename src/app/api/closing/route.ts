@@ -2,6 +2,7 @@
 // POST /api/closing — Submit closing report, tutup sesi kas, alert jika selisih besar
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendPushToRole } from '@/lib/push'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -100,6 +101,8 @@ export async function POST(request: Request) {
       message: `Selisih kas ${(selisih ?? 0) > 0 ? '+' : ''}${selisih} — ${selisihNotes ?? ''}`,
     })
     if (alertError) console.error('[/api/closing] insert alert error:', alertError)
+    sendPushToRole('💰 Selisih Kas', `${(selisih ?? 0) > 0 ? '+' : ''}${selisih} — ${selisihNotes ?? ''}`, '/app/dashboard')
+      .catch(err => console.error('push error:', err))
   }
 
   return NextResponse.json({ success: true })

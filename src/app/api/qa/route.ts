@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendPushToRole } from '@/lib/push'
 import type { SessionPayload } from '@/types'
 
 export async function GET(request: Request) {
@@ -72,6 +73,8 @@ export async function POST(request: Request) {
       reference_id: orderId,
     })
     if (alertError) console.error('[/api/qa] insert alert error:', alertError)
+    sendPushToRole('❌ QA Gagal', `Order ${orderNumber ?? ''} — ${notes || 'tidak ada catatan'}`, '/app/dashboard')
+      .catch(err => console.error('push error:', err))
   }
 
   return NextResponse.json({ success: true })

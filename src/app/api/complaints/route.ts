@@ -4,6 +4,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendPushToRole } from '@/lib/push'
 import type { SessionPayload } from '@/types'
 
 function getSession(): SessionPayload | null {
@@ -64,7 +65,7 @@ export async function POST(request: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Buat dashboard_alert kalau severity high
+  // Buat dashboard_alert + push notification kalau severity high
   if (severity === 'high') {
     await supabase.from('dashboard_alerts').insert({
       tenant_id:    tenantId,
@@ -73,6 +74,8 @@ export async function POST(request: Request) {
       message:      `🚨 Insiden: ${description.trim().substring(0, 80)}`,
       reference_id: data.id,
     })
+    sendPushToRole('🚨 Insiden Baru', description.trim().substring(0, 120), '/app/dashboard')
+      .catch(err => console.error('push error:', err))
   }
 
   return NextResponse.json({ success: true, complaint: data })

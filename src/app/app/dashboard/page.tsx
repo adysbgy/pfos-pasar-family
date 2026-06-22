@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { formatRupiah } from '@/types'
+import PushNotificationToggle from '@/components/PushNotificationToggle'
 import type { DashboardAlert } from '@/types'
 
 export default function DashboardPage() {
@@ -57,6 +58,8 @@ export default function DashboardPage() {
           <span className="text-xs text-gray-500">Live</span>
         </div>
       </div>
+
+      <PushNotificationToggle />
 
       {/* Alert merah — paling atas */}
       {redAlerts.length > 0 && (

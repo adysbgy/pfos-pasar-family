@@ -4,6 +4,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendPushToRole } from '@/lib/push'
 import type { SessionPayload } from '@/types'
 
 function getSession(): SessionPayload | null {
@@ -87,6 +88,13 @@ export async function POST(request: Request) {
   })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  if (data?.qty_after <= 0) {
+    const { data: item } = await supabase.from('inventory_items').select('name, unit').eq('id', itemId).single()
+    sendPushToRole('📦 Stok Habis', `${item?.name ?? 'Item'} sudah 0 ${item?.unit ?? ''}`, '/app/inventory')
+      .catch(err => console.error('push error:', err))
+  }
+
   return NextResponse.json({ success: true, result: data })
 }
 
