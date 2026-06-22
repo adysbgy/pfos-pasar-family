@@ -81,7 +81,12 @@ export default function ReportsPage() {
     <div className="max-w-md mx-auto px-4 py-4 print:px-0 print:py-0">
       {/* Header — hidden saat print */}
       <div className="print:hidden mb-4">
-        <h1 className="text-xl font-bold mb-3">Laporan Harian</h1>
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-xl font-bold">Laporan Harian</h1>
+          <a href="/app/analytics" className="text-xs font-medium bg-gray-100 text-gray-700 px-3 py-1.5 rounded-full active:bg-gray-200">
+            📊 Analytics →
+          </a>
+        </div>
         {/* Date picker */}
         <div className="flex items-center gap-2 mb-3">
           <button onClick={() => {
