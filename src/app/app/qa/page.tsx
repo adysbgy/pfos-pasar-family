@@ -154,10 +154,13 @@ export default function QAPage() {
     <div>
       {!session?.selectedTenantId && <TenantPicker tenants={tenants} selected={selectedTenant} onSelect={id => { setLoading(true); setSelectedTenant(id) }} />}
       <div className="max-w-md mx-auto px-4 py-4">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-2">
         <h1 className="text-xl font-bold">QA Gate</h1>
         {doneCount > 0 && <span className="bg-green-100 text-green-700 px-3 py-1.5 rounded-full text-sm font-medium">✅ {doneCount} selesai</span>}
       </div>
+      <a href="/app/opening" className="inline-block text-xs font-medium bg-amber-50 text-amber-700 px-3 py-1.5 rounded-full active:bg-amber-100 mb-4">
+        🌅 Opening Checklist →
+      </a>
       {pendingOrders.length === 0 ? (
         <div className="text-center py-20 text-gray-400">
           <p className="text-5xl mb-3">🔍</p>
