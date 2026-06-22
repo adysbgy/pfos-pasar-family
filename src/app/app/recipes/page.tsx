@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { formatRupiah } from '@/types'
 import type { SessionPayload } from '@/types'
 
 // ============================================================
@@ -28,6 +29,8 @@ interface MenuItemWithRecipes {
   price: number
   category: { name: string } | null
   recipes: Recipe[]
+  cogs: number
+  margin: number
 }
 
 export default function RecipesPage() {
@@ -54,12 +57,14 @@ export default function RecipesPage() {
     fetch('/api/tenants').then(r => r.json()).then(d => setTenants(d.tenants ?? []))
   }, [])
 
-  const loadMenu = useCallback(async (tenantId: string) => {
+  const loadMenu = useCallback(async (tenantId: string): Promise<MenuItemWithRecipes[]> => {
     setLoading(true)
     const res = await fetch(`/api/recipes?tenantId=${tenantId}`)
     const data = await res.json()
-    setMenuItems(data.menuItems ?? [])
+    const list: MenuItemWithRecipes[] = data.menuItems ?? []
+    setMenuItems(list)
     setLoading(false)
+    return list
   }, [])
 
   const loadInventory = useCallback(async (tenantId: string) => {
@@ -100,18 +105,8 @@ export default function RecipesPage() {
       })
       const data = await res.json()
       if (data.success) {
-        await loadMenu(selectedTenant)
-        // Update selectedMenu biar detail langsung refresh
-        setSelMenu(prev => prev ? {
-          ...prev,
-          recipes: [...prev.recipes, {
-            id: data.recipe.id,
-            qty_per_portion: data.recipe.qty_per_portion,
-            unit: data.recipe.unit,
-            notes: data.recipe.notes,
-            inventory_item: invItem!,
-          }],
-        } : null)
+        const list = await loadMenu(selectedTenant)
+        setSelMenu(list.find(m => m.id === selectedMenu.id) ?? null)
         setView('detail')
       } else alert(data.error ?? 'Gagal')
     } catch { alert('Koneksi bermasalah.') }
@@ -121,8 +116,8 @@ export default function RecipesPage() {
   async function handleDeleteRecipe(recipeId: string) {
     if (!confirm('Hapus bahan ini dari resep?')) return
     await fetch(`/api/recipes?id=${recipeId}`, { method: 'DELETE' })
-    await loadMenu(selectedTenant)
-    setSelMenu(prev => prev ? { ...prev, recipes: prev.recipes.filter(r => r.id !== recipeId) } : null)
+    const list = await loadMenu(selectedTenant)
+    setSelMenu(prev => list.find(m => m.id === prev?.id) ?? null)
   }
 
   const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
@@ -219,6 +214,23 @@ export default function RecipesPage() {
             <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 mb-4 text-sm text-green-800">
               ✅ {selectedMenu.recipes.length} bahan — stok otomatis berkurang setiap order masuk
             </div>
+            <div className="card mb-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Margin Profit</p>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-gray-500">Harga Jual</span>
+                <span className="font-semibold">{formatRupiah(selectedMenu.price)}</span>
+              </div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-gray-500">Biaya Bahan (COGS)</span>
+                <span className="font-semibold text-red-600">-{formatRupiah(selectedMenu.cogs)}</span>
+              </div>
+              <div className="flex justify-between pt-2 mt-1 border-t border-gray-100">
+                <span className="font-bold">Margin</span>
+                <span className={`font-bold ${selectedMenu.margin >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                  {formatRupiah(selectedMenu.margin)} ({selectedMenu.price > 0 ? Math.round(selectedMenu.margin / selectedMenu.price * 100) : 0}%)
+                </span>
+              </div>
+            </div>
             <div className="space-y-2">
               {selectedMenu.recipes.map(r => (
                 <div key={r.id} className="card flex items-center gap-3">
@@ -280,9 +292,18 @@ export default function RecipesPage() {
               <div className="flex-1 min-w-0">
                 <p className="font-semibold truncate">{item.name}</p>
                 {hasRecipe ? (
-                  <p className="text-xs text-green-700 mt-0.5">
-                    ✅ {item.recipes.length} bahan: {item.recipes.map(r => `${r.inventory_item.name} ${r.qty_per_portion}${r.unit}`).join(', ')}
-                  </p>
+                  <>
+                    <p className="text-xs text-green-700 mt-0.5 truncate">
+                      ✅ {item.recipes.length} bahan: {item.recipes.map(r => `${r.inventory_item.name} ${r.qty_per_portion}${r.unit}`).join(', ')}
+                    </p>
+                    {item.cogs > 0 && (
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Margin: <span className={item.margin >= 0 ? 'text-green-700 font-medium' : 'text-red-600 font-medium'}>
+                          {formatRupiah(item.margin)} ({item.price > 0 ? Math.round(item.margin / item.price * 100) : 0}%)
+                        </span>
+                      </p>
+                    )}
+                  </>
                 ) : (
                   <p className="text-xs text-gray-400 mt-0.5">⚪ Belum ada resep</p>
                 )}

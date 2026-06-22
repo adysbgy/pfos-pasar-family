@@ -24,14 +24,20 @@ export async function GET(request: Request) {
   const supabase = createAdminClient()
 
   if (menuItemId) {
-    const { data, error } = await supabase
-      .from('recipes')
-      .select('*, inventory_item:inventory_items(id, name, unit, category)')
-      .eq('menu_item_id', menuItemId)
-      .order('created_at')
+    const [{ data, error }, { data: menuItem }] = await Promise.all([
+      supabase
+        .from('recipes')
+        .select('*, inventory_item:inventory_items(id, name, unit, category, cost_per_unit)')
+        .eq('menu_item_id', menuItemId)
+        .order('created_at'),
+      supabase.from('menu_items').select('price').eq('id', menuItemId).single(),
+    ])
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ recipes: data ?? [] })
+
+    const cogs = (data ?? []).reduce((s, r: any) => s + r.qty_per_portion * (r.inventory_item?.cost_per_unit ?? 0), 0)
+    const price = menuItem?.price ?? 0
+    return NextResponse.json({ recipes: data ?? [], cogs, price, margin: price - cogs })
   }
 
   if (tenantId) {
@@ -48,14 +54,15 @@ export async function GET(request: Request) {
     const menuIds = menuItems.map(m => m.id)
     const { data: allRecipes } = await supabase
       .from('recipes')
-      .select('menu_item_id, id, qty_per_portion, unit, inventory_item:inventory_items(id, name, unit)')
+      .select('menu_item_id, id, qty_per_portion, unit, inventory_item:inventory_items(id, name, unit, cost_per_unit)')
       .in('menu_item_id', menuIds)
 
-    // Gabungkan
-    const result = menuItems.map(m => ({
-      ...m,
-      recipes: allRecipes?.filter(r => r.menu_item_id === m.id) ?? [],
-    }))
+    // Gabungkan + hitung COGS & margin
+    const result = menuItems.map(m => {
+      const recipes = allRecipes?.filter(r => r.menu_item_id === m.id) ?? []
+      const cogs = recipes.reduce((s, r: any) => s + r.qty_per_portion * (r.inventory_item?.cost_per_unit ?? 0), 0)
+      return { ...m, recipes, cogs, margin: m.price - cogs }
+    })
 
     return NextResponse.json({ menuItems: result })
   }

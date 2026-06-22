@@ -46,14 +46,14 @@ export async function POST(request: Request) {
 
   // Tambah item baru
   if (body.action === 'create_item') {
-    const { tenantId, name, unit, category, minStock, initialQty } = body
+    const { tenantId, name, unit, category, minStock, initialQty, costPerUnit } = body
     if (!tenantId || !name || !unit) {
       return NextResponse.json({ error: 'name, unit, tenantId wajib' }, { status: 400 })
     }
 
     const { data: item, error: itemErr } = await supabase
       .from('inventory_items')
-      .insert({ tenant_id: tenantId, name, unit, category: category ?? 'bahan', min_stock: minStock ?? 5 })
+      .insert({ tenant_id: tenantId, name, unit, category: category ?? 'bahan', min_stock: minStock ?? 5, cost_per_unit: costPerUnit ?? 0 })
       .select().single()
 
     if (itemErr || !item) return NextResponse.json({ error: itemErr?.message }, { status: 500 })
@@ -88,4 +88,30 @@ export async function POST(request: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true, result: data })
+}
+
+// PATCH — edit harga bahan (cost_per_unit) untuk hitung COGS
+export async function PATCH(request: Request) {
+  const session = getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!['owner', 'supervisor'].includes(session.primaryRole)) {
+    return NextResponse.json({ error: 'Hanya owner/supervisor' }, { status: 403 })
+  }
+
+  const body = await request.json()
+  const { itemId, costPerUnit } = body
+  if (!itemId || costPerUnit === undefined) {
+    return NextResponse.json({ error: 'itemId, costPerUnit wajib' }, { status: 400 })
+  }
+
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('inventory_items')
+    .update({ cost_per_unit: costPerUnit })
+    .eq('id', itemId)
+    .select()
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ success: true, item: data })
 }

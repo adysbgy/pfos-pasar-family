@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import TenantPicker from '@/components/TenantPicker'
+import { formatRupiah } from '@/types'
 import type { SessionPayload } from '@/types'
 
 interface Tenant { id: string; name: string; color: string }
@@ -20,6 +21,7 @@ interface InventoryItem {
   category: string
   min_stock: number
   sort_order: number
+  cost_per_unit: number
   stock: { current_qty: number; last_updated: string } | null
 }
 
@@ -57,7 +59,7 @@ export default function InventoryPage() {
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null)
   const [txHistory, setTxHistory]       = useState<InventoryTransaction[]>([])
   const [histLoading, setHistLoading]   = useState(false)
-  const [view, setView]                 = useState<'list' | 'adjust' | 'history' | 'add_item'>('list')
+  const [view, setView]                 = useState<'list' | 'adjust' | 'history' | 'add_item' | 'cost'>('list')
 
   // Adjust form
   const [txType, setTxType]     = useState<TxType>('purchase')
@@ -72,6 +74,10 @@ export default function InventoryPage() {
   const [newCategory, setNewCategory] = useState('bahan')
   const [newMinStock, setNewMinStock] = useState('5')
   const [newInitQty, setNewInitQty]   = useState('0')
+  const [newCostPerUnit, setNewCostPerUnit] = useState('0')
+
+  // Edit cost form
+  const [costInput, setCostInput] = useState('')
 
   useEffect(() => {
     fetch('/api/auth/session').then(r => r.json()).then(d => {
@@ -110,6 +116,32 @@ export default function InventoryPage() {
     setNotes('')
     setSuccessMsg('')
     setView('adjust')
+  }
+
+  function openCost(item: InventoryItem) {
+    setSelectedItem(item)
+    setCostInput(String(item.cost_per_unit ?? 0))
+    setView('cost')
+  }
+
+  async function handleSaveCost() {
+    if (!selectedItem) return
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/inventory', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId: selectedItem.id, costPerUnit: parseFloat(costInput) || 0 }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setItems(prev => prev.map(i => i.id === selectedItem.id ? { ...i, cost_per_unit: data.item.cost_per_unit } : i))
+        setView('list')
+      } else {
+        alert('Error: ' + (data.error ?? 'Gagal'))
+      }
+    } catch { alert('Koneksi bermasalah.') }
+    finally { setSubmitting(false) }
   }
 
   function openHistory(item: InventoryItem) {
@@ -167,12 +199,13 @@ export default function InventoryPage() {
           category: newCategory,
           minStock: parseInt(newMinStock) || 5,
           initialQty: parseInt(newInitQty) || 0,
+          costPerUnit: parseFloat(newCostPerUnit) || 0,
         }),
       })
       const data = await res.json()
       if (data.success) {
         setNewName(''); setNewUnit('pcs'); setNewCategory('bahan')
-        setNewMinStock('5'); setNewInitQty('0')
+        setNewMinStock('5'); setNewInitQty('0'); setNewCostPerUnit('0')
         loadItems()
         setView('list')
       } else {
@@ -323,6 +356,32 @@ export default function InventoryPage() {
     )
   }
 
+  // ── View: Harga Bahan (untuk COGS) ────────────────────────
+  if (view === 'cost' && selectedItem) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-4">
+        <div className="flex items-center gap-3 mb-6">
+          <button onClick={() => setView('list')} className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-100 text-lg">←</button>
+          <div>
+            <h1 className="text-lg font-bold leading-tight">{selectedItem.name}</h1>
+            <p className="text-sm text-gray-500">Harga per {selectedItem.unit}</p>
+          </div>
+        </div>
+        <div className="card mb-4">
+          <label className="text-sm font-medium text-gray-700 block mb-2">Harga Beli (Rp / {selectedItem.unit})</label>
+          <input type="tel" inputMode="numeric" placeholder="0" value={costInput}
+            onChange={e => setCostInput(e.target.value.replace(/\D/g, ''))}
+            className="w-full text-3xl font-bold border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-gray-900 outline-none" />
+          <p className="text-xs text-gray-400 mt-2">Dipakai untuk hitung COGS (biaya bahan) di halaman Resep</p>
+        </div>
+        <button onClick={handleSaveCost} disabled={submitting}
+          className="btn-primary w-full text-lg py-4 disabled:opacity-40">
+          {submitting ? '...' : '💾 Simpan Harga'}
+        </button>
+      </div>
+    )
+  }
+
   // ── View: Tambah Item ─────────────────────────────────────
   if (view === 'add_item') {
     return (
@@ -373,6 +432,13 @@ export default function InventoryPage() {
                 onChange={e => setNewInitQty(e.target.value.replace(/\D/g,''))}
                 className="w-full border-2 border-gray-200 rounded-lg px-3 py-2 text-lg font-bold focus:border-gray-900 outline-none" />
             </div>
+          </div>
+          <div className="card">
+            <label className="text-sm font-medium text-gray-700 block mb-2">Harga Beli (Rp / satuan, opsional)</label>
+            <input type="tel" inputMode="numeric" value={newCostPerUnit}
+              onChange={e => setNewCostPerUnit(e.target.value.replace(/\D/g,''))}
+              placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-gray-900 outline-none text-lg font-bold" />
+            <p className="text-xs text-gray-400 mt-1">Dipakai untuk hitung COGS di halaman Resep</p>
           </div>
           <button onClick={handleAddItem}
             disabled={submitting || !newName.trim()}
@@ -471,7 +537,10 @@ export default function InventoryPage() {
                     {qty === 0 && <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-medium">HABIS</span>}
                     {qty > 0 && isLow && <span className="text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded font-medium">LOW</span>}
                   </div>
-                  <p className="text-xs text-gray-400 mt-0.5">{CATEGORY_LABEL[item.category] ?? item.category}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {CATEGORY_LABEL[item.category] ?? item.category}
+                    {item.cost_per_unit > 0 && ` · ${formatRupiah(item.cost_per_unit)}/${item.unit}`}
+                  </p>
                 </div>
                 {/* Qty badge */}
                 <div className={`px-3 py-1.5 rounded-xl font-bold text-sm min-w-[60px] text-center ${stockColorClass}`}>
@@ -479,6 +548,13 @@ export default function InventoryPage() {
                 </div>
                 {/* Action buttons */}
                 <div className="flex gap-1.5">
+                  {isOwnerOrSup && (
+                    <button onClick={() => openCost(item)}
+                      className="w-9 h-9 flex items-center justify-center bg-gray-100 rounded-lg text-base active:bg-gray-200"
+                      title="Set harga">
+                      💰
+                    </button>
+                  )}
                   <button onClick={() => openHistory(item)}
                     className="w-9 h-9 flex items-center justify-center bg-gray-100 rounded-lg text-base active:bg-gray-200"
                     title="Riwayat">
