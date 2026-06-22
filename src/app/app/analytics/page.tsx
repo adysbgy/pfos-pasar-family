@@ -75,7 +75,7 @@ export default function AnalyticsPage() {
     <div>
       {!session?.selectedTenantId && <TenantPicker tenants={tenants} selected={selectedTenant} onSelect={setSelectedTenant} />}
       <div className="max-w-md mx-auto px-4 py-4">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-2">
           <h1 className="text-xl font-bold">Analytics</h1>
           <div className="flex gap-1.5">
             {RANGE_OPTIONS.map(opt => (
@@ -87,6 +87,9 @@ export default function AnalyticsPage() {
             ))}
           </div>
         </div>
+        <a href="/app/staff-kpi" className="inline-block text-xs font-medium bg-gray-100 text-gray-700 px-3 py-1.5 rounded-full active:bg-gray-200 mb-4">
+          👤 Staff KPI →
+        </a>
 
         {loading ? (
           <div className="flex justify-center py-16">
