@@ -88,12 +88,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Nama user + role */}
+          {/* Nama user + role — tap untuk ganti PIN */}
           {session && (
-            <div className="text-right">
+            <button onClick={() => router.push('/app/change-pin')} className="text-right" title="Ganti PIN">
               <p className="text-xs font-semibold text-gray-700 leading-none">{session.name}</p>
               <p className="text-[10px] text-gray-400 leading-none mt-0.5 capitalize">{role}</p>
-            </div>
+            </button>
           )}
 
           {/* Tombol logout */}

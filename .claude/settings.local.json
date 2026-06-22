@@ -72,7 +72,10 @@
       "Bash(curl -s -X POST https://pasarfamily.my.id/api/auth/pin -H \"Content-Type: application/json\" -d '{\"userId\":\"33333333-0000-0000-0000-000000000003\",\"pin\":\"123456\"}' -c /tmp/prod3.txt -o /dev/null)",
       "Bash(curl -s -X POST https://pasarfamily.my.id/api/orders -b /tmp/prod3.txt -H 'Content-Type: application/json' -d '{ *)",
       "Bash(curl -s -o /dev/null -w \"%{http_code} %{content_type}\\\\n\" https://pasarfamily.my.id/sw.js)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://pasarfamily.my.id/app/dashboard)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://pasarfamily.my.id/app/dashboard)",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/pin -H \"Content-Type: application/json\" -d '{\"userId\":\"33333333-0000-0000-0000-000000000007\",\"pin\":\"999999\"}')",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/pin -H \"Content-Type: application/json\" -d '{\"userId\":\"33333333-0000-0000-0000-000000000007\",\"pin\":\"654321\"}')",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/pin -H \"Content-Type: application/json\" -d '{\"userId\":\"33333333-0000-0000-0000-000000000007\",\"pin\":\"123456\"}')"
     ]
   }
 }
