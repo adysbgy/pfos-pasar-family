@@ -21,6 +21,7 @@ interface CreateOrderBody {
   qrisReference?: string    // opsional dari GoPay
   customerName?: string
   tableNumber?: string      // Sprint 3: nomor meja untuk dine_in
+  voucherCode?: string      // Sprint 4: kode voucher
   notes?: string
 }
 
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json() as CreateOrderBody
-    const { tenantId, channel, items, paymentMethod, amountReceived, qrisReference, customerName, tableNumber, notes } = body
+    const { tenantId, channel, items, paymentMethod, amountReceived, qrisReference, customerName, tableNumber, voucherCode, notes } = body
 
     if (!tenantId || !channel || !items?.length || !paymentMethod) {
       return NextResponse.json({ error: 'Data order tidak lengkap' }, { status: 400 })
@@ -65,9 +66,36 @@ export async function POST(request: Request) {
     const seq = String(seqData).padStart(3, '0')
     const orderNumber = `${prefix}-${dateStr}-${seq}`
 
-    // 2. Hitung total
+    // 2. Hitung total + validasi voucher (re-validasi server-side, jangan percaya nilai dari client)
     const subtotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
-    const total = subtotal // Diskon bisa ditambah nanti
+    let discount = 0
+    let voucher: { id: string; code: string; used_count: number } | null = null
+
+    if (voucherCode) {
+      const { data: v } = await supabase
+        .from('vouchers')
+        .select('*')
+        .eq('code', voucherCode.trim().toUpperCase())
+        .or(`tenant_id.eq.${tenantId},tenant_id.is.null`)
+        .single()
+
+      const now = new Date()
+      const isValid = v
+        && v.status === 'active'
+        && (!v.valid_from || now >= new Date(v.valid_from))
+        && (!v.valid_until || now <= new Date(v.valid_until))
+        && (v.usage_limit === null || v.used_count < v.usage_limit)
+        && subtotal >= v.min_purchase
+
+      if (isValid) {
+        discount = v.type === 'percent' ? Math.round(subtotal * v.value / 100) : v.value
+        if (v.max_discount) discount = Math.min(discount, v.max_discount)
+        discount = Math.min(discount, subtotal)
+        voucher = v
+      }
+    }
+
+    const total = subtotal - discount
 
     // 3. Insert order
     const { data: order, error: orderError } = await supabase
@@ -80,10 +108,12 @@ export async function POST(request: Request) {
         payment_method: paymentMethod,
         payment_status: 'paid',
         subtotal,
-        discount: 0,
+        discount,
         total,
         customer_name: customerName,
         table_number: tableNumber || null,
+        voucher_id: voucher?.id ?? null,
+        voucher_code: voucher?.code ?? null,
         notes,
         kasir_id: session.userId,
       })
@@ -166,6 +196,12 @@ export async function POST(request: Request) {
     // 10. Auto-deduct inventory berdasarkan resep (Sprint 3)
     supabase.rpc('deduct_inventory_for_order', { p_order_id: order.id })
       .then(({ error }) => { if (error) console.error('deduct_inventory error:', error) })
+
+    // 11. Increment used_count voucher (Sprint 4)
+    if (voucher) {
+      supabase.from('vouchers').update({ used_count: voucher.used_count + 1 }).eq('id', voucher.id)
+        .then(({ error }) => { if (error) console.error('voucher used_count error:', error) })
+    }
 
     return NextResponse.json({
       success: true,

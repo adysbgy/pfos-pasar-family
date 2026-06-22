@@ -63,7 +63,9 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code} %{content_type} %{size_download}\\\\n\" http://localhost:3000/icon-192.png)",
       "Bash(curl -s -o /dev/null -w \"%{http_code} %{content_type} %{size_download}\\\\n\" http://localhost:3000/icon-512.png)",
       "Bash(curl -s http://localhost:3000/app/login)",
-      "Bash(git commit -m 'chore: update local permission allowlist *)"
+      "Bash(git commit -m 'chore: update local permission allowlist *)",
+      "Bash(curl -s -X POST https://pasarfamily.my.id/api/auth/pin -H \"Content-Type: application/json\" -d '{\"userId\":\"33333333-0000-0000-0000-000000000003\",\"pin\":\"123456\"}' -c /tmp/prod_cookie2.txt -o /tmp/prod_pin2.json)",
+      "Bash(curl -s -X POST https://pasarfamily.my.id/api/orders -b /tmp/prod_cookie2.txt -H 'Content-Type: application/json' -d '{ *)"
     ]
   }
 }

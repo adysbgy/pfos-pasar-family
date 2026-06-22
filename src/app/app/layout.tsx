@@ -16,6 +16,7 @@ const NAV_BY_ROLE: Record<RoleName, { href: string; icon: string; label: string 
     { href: '/app/pos',        icon: '🛒', label: 'POS' },
     { href: '/app/inventory',  icon: '📦', label: 'Stok' },
     { href: '/app/reports',    icon: '📈', label: 'Laporan' },
+    { href: '/app/vouchers',   icon: '🎟️', label: 'Voucher' },
     { href: '/app/complaints', icon: '🚨', label: 'Insiden' },
   ],
   supervisor: [

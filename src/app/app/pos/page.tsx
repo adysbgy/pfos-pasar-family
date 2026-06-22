@@ -41,6 +41,10 @@ export default function POSPage() {
   const [view, setView]                     = useState<View>('menu')
   const [paymentMethod, setPaymentMethod]   = useState<PaymentMethod>('cash')
   const [cashInput, setCashInput]           = useState('')
+  const [voucherInput, setVoucherInput]     = useState('')
+  const [voucher, setVoucher]               = useState<{ code: string; discount: number } | null>(null)
+  const [voucherError, setVoucherError]     = useState('')
+  const [voucherChecking, setVoucherChecking] = useState(false)
   const [submitting, setSubmitting]         = useState(false)
   const [successOrder, setSuccessOrder]     = useState<{ number: string; change: number } | null>(null)
 
@@ -69,8 +73,30 @@ export default function POSPage() {
 
   const cartTotal = cart.reduce((s, c) => s + c.menuItem.price * c.quantity, 0)
   const cartCount = cart.reduce((s, c) => s + c.quantity, 0)
+  const payableTotal = Math.max(0, cartTotal - (voucher?.discount ?? 0))
   const cashReceived = parseInt(cashInput.replace(/\D/g, '')) || 0
-  const change = Math.max(0, cashReceived - cartTotal)
+  const change = Math.max(0, cashReceived - payableTotal)
+
+  async function applyVoucher() {
+    if (!voucherInput.trim() || !selectedTenant) return
+    setVoucherChecking(true)
+    setVoucherError('')
+    try {
+      const res = await fetch('/api/vouchers/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: voucherInput.trim(), tenantId: selectedTenant, subtotal: cartTotal }),
+      })
+      const data = await res.json()
+      if (data.valid) {
+        setVoucher({ code: data.code, discount: data.discount })
+        setVoucherInput('')
+      } else {
+        setVoucherError(data.error ?? 'Voucher tidak valid')
+      }
+    } catch { setVoucherError('Koneksi bermasalah.') }
+    finally { setVoucherChecking(false) }
+  }
 
   const addToCart = useCallback((item: MenuItem) => {
     setCart(prev => {
@@ -90,7 +116,7 @@ export default function POSPage() {
 
   async function handleSubmit() {
     if (!selectedTenant || cart.length === 0) return
-    if (paymentMethod === 'cash' && cashReceived < cartTotal) return
+    if (paymentMethod === 'cash' && cashReceived < payableTotal) return
     setSubmitting(true)
     try {
       const res = await fetch('/api/orders', {
@@ -102,7 +128,8 @@ export default function POSPage() {
           items: cart.map(c => ({ menuItemId: c.menuItem.id, quantity: c.quantity, unitPrice: c.menuItem.price })),
           paymentMethod,
           tableNumber: channel === 'dine_in' ? tableNumber : undefined,
-          amountReceived: paymentMethod === 'cash' ? cashReceived : cartTotal,
+          voucherCode: voucher?.code,
+          amountReceived: paymentMethod === 'cash' ? cashReceived : payableTotal,
         }),
       })
       const data = await res.json()
@@ -110,6 +137,7 @@ export default function POSPage() {
         setSuccessOrder({ number: data.orderNumber, change: data.changeGiven })
         setCart([])
         setCashInput('')
+        setVoucher(null)
         setView('menu')
       } else {
         alert('Gagal: ' + (data.error ?? 'Error'))
@@ -173,9 +201,41 @@ export default function POSPage() {
         </div>
         <div className="card mb-4 text-center">
           <p className="text-sm text-gray-500">Total Tagihan</p>
-          <p className="text-4xl font-bold mt-1">{formatRupiah(cartTotal)}</p>
+          {voucher ? (
+            <>
+              <p className="text-lg text-gray-400 line-through mt-1">{formatRupiah(cartTotal)}</p>
+              <p className="text-4xl font-bold text-green-700">{formatRupiah(payableTotal)}</p>
+            </>
+          ) : (
+            <p className="text-4xl font-bold mt-1">{formatRupiah(cartTotal)}</p>
+          )}
           <p className="text-xs text-gray-400 mt-1">{cartCount} item</p>
         </div>
+
+        {/* Voucher */}
+        <div className="card mb-4">
+          <label className="text-sm font-medium text-gray-700 block mb-2">Kode Voucher</label>
+          {voucher ? (
+            <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+              <div>
+                <p className="font-bold text-green-800">{voucher.code}</p>
+                <p className="text-xs text-green-700">Hemat {formatRupiah(voucher.discount)}</p>
+              </div>
+              <button onClick={() => setVoucher(null)} className="text-sm text-red-500 font-medium">Hapus</button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <input type="text" value={voucherInput} onChange={e => setVoucherInput(e.target.value.toUpperCase())}
+                placeholder="Masukkan kode" className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-gray-900 outline-none" />
+              <button onClick={applyVoucher} disabled={voucherChecking || !voucherInput.trim()}
+                className="bg-gray-900 text-white px-4 py-2.5 rounded-xl text-sm font-medium disabled:opacity-40">
+                {voucherChecking ? '...' : 'Pakai'}
+              </button>
+            </div>
+          )}
+          {voucherError && <p className="text-xs text-red-600 mt-2">{voucherError}</p>}
+        </div>
+
         <div className="grid grid-cols-2 gap-3 mb-5">
           {(['cash','qris'] as PaymentMethod[]).map(m => (
             <button key={m} onClick={() => setPaymentMethod(m)}
@@ -191,23 +251,23 @@ export default function POSPage() {
             <input type="tel" inputMode="numeric" placeholder="0" value={cashInput}
               onChange={e => setCashInput(e.target.value)}
               className="w-full text-2xl font-bold border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-gray-900 outline-none" />
-            {cashReceived >= cartTotal && cashReceived > 0 && (
+            {cashReceived >= payableTotal && cashReceived > 0 && (
               <div className="mt-3 flex justify-between bg-green-50 rounded-xl px-4 py-3">
                 <span className="text-sm text-green-700">Kembalian</span>
                 <span className="font-bold text-green-800">{formatRupiah(change)}</span>
               </div>
             )}
-            {cashReceived > 0 && cashReceived < cartTotal && (
+            {cashReceived > 0 && cashReceived < payableTotal && (
               <div className="mt-3 flex justify-between bg-red-50 rounded-xl px-4 py-3">
                 <span className="text-sm text-red-700">Kurang</span>
-                <span className="font-bold text-red-800">{formatRupiah(cartTotal - cashReceived)}</span>
+                <span className="font-bold text-red-800">{formatRupiah(payableTotal - cashReceived)}</span>
               </div>
             )}
             <div className="grid grid-cols-4 gap-2 mt-3">
               {[5000,10000,20000,50000].map(v => (
-                <button key={v} onClick={() => setCashInput(String(Math.ceil(cartTotal/v)*v))}
+                <button key={v} onClick={() => setCashInput(String(Math.ceil(payableTotal/v)*v))}
                   className="text-xs py-2 bg-gray-100 rounded-lg font-medium active:bg-gray-200">
-                  {Math.ceil(cartTotal/v)*v/1000}K
+                  {Math.ceil(payableTotal/v)*v/1000}K
                 </button>
               ))}
             </div>
@@ -219,8 +279,8 @@ export default function POSPage() {
             <p className="text-sm text-blue-700 mt-1">Notif masuk via GoPay Merchant</p>
           </div>
         )}
-        <button onClick={handleSubmit} disabled={submitting || (paymentMethod==='cash' && cashReceived<cartTotal)} className="btn-primary w-full text-lg py-4">
-          {submitting ? <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin inline-block" /> : `✓ Konfirmasi ${formatRupiah(cartTotal)}`}
+        <button onClick={handleSubmit} disabled={submitting || (paymentMethod==='cash' && cashReceived<payableTotal)} className="btn-primary w-full text-lg py-4">
+          {submitting ? <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin inline-block" /> : `✓ Konfirmasi ${formatRupiah(payableTotal)}`}
         </button>
       </div>
     )
