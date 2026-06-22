@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     .from('complaints')
     .insert({
       tenant_id:   tenantId,
-      reported_by: session.userId,
+      reporter_id: session.userId,
       type,
       description: description.trim(),
       severity:    severity ?? 'medium',
@@ -86,17 +86,15 @@ export async function PATCH(request: Request) {
   }
 
   const body = await request.json()
-  const { id, status, resolution_notes } = body
+  const { id, status } = body
   if (!id) return NextResponse.json({ error: 'id wajib' }, { status: 400 })
 
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('complaints')
     .update({
-      status:           status ?? 'resolved',
-      resolution_notes: resolution_notes ?? null,
-      resolved_by:      session.userId,
-      resolved_at:      new Date().toISOString(),
+      status:      status ?? 'resolved',
+      resolved_at: new Date().toISOString(),
     })
     .eq('id', id)
     .select()

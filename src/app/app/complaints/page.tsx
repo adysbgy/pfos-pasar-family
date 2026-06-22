@@ -1,7 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import TenantPicker from '@/components/TenantPicker'
 import type { SessionPayload } from '@/types'
+
+interface Tenant { id: string; name: string; color: string }
 
 // ============================================================
 // Halaman Complaint & Insiden
@@ -44,6 +47,8 @@ const SEV_CONFIG: Record<Severity, { label: string; color: string }> = {
 
 export default function ComplaintsPage() {
   const [session, setSession]       = useState<SessionPayload | null>(null)
+  const [tenants, setTenants]       = useState<Tenant[]>([])
+  const [selectedTenant, setSelectedTenant] = useState('')
   const [complaints, setComplaints] = useState<Complaint[]>([])
   const [loading, setLoading]       = useState(true)
   const [view, setView]             = useState<'main' | 'form' | 'history'>('main')
@@ -56,17 +61,22 @@ export default function ComplaintsPage() {
   const [desc, setDesc]             = useState('')
 
   useEffect(() => {
-    fetch('/api/auth/session').then(r => r.json()).then(d => setSession(d.session))
+    fetch('/api/auth/session').then(r => r.json()).then(d => {
+      setSession(d.session)
+      if (d.session?.selectedTenantId) setSelectedTenant(d.session.selectedTenantId)
+      else setLoading(false)
+    })
+    fetch('/api/tenants').then(r => r.json()).then(d => setTenants(d.tenants ?? []))
   }, [])
 
   useEffect(() => {
-    if (session?.selectedTenantId) loadComplaints()
-  }, [session])
+    if (selectedTenant) loadComplaints()
+  }, [selectedTenant])
 
   async function loadComplaints() {
-    if (!session?.selectedTenantId) return
+    if (!selectedTenant) return
     setLoading(true)
-    const res = await fetch(`/api/complaints?tenantId=${session.selectedTenantId}`)
+    const res = await fetch(`/api/complaints?tenantId=${selectedTenant}`)
     const data = await res.json()
     setComplaints(data.complaints ?? [])
     setLoading(false)
@@ -81,14 +91,14 @@ export default function ComplaintsPage() {
   }
 
   async function handleSubmit() {
-    if (!desc.trim() || !session?.selectedTenantId) return
+    if (!desc.trim() || !selectedTenant) return
     setSubmitting(true)
     try {
       const res = await fetch('/api/complaints', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tenantId:    session.selectedTenantId,
+          tenantId:    selectedTenant,
           type:        selType,
           description: desc.trim(),
           severity:    selSev,
@@ -236,10 +246,24 @@ export default function ComplaintsPage() {
     )
   }
 
+  // ── View: Pilih tenant dulu (owner/supervisor tanpa home tenant tetap) ──
+  if (!session?.selectedTenantId && !selectedTenant) {
+    return (
+      <div>
+        <TenantPicker tenants={tenants} selected={selectedTenant} onSelect={id => { setLoading(true); setSelectedTenant(id) }} />
+        <div className="text-center py-20 text-gray-400">
+          <p className="text-5xl mb-3">🏪</p>
+          <p className="font-medium">Pilih tenant dulu</p>
+        </div>
+      </div>
+    )
+  }
+
   // ── View: Main (Om Tommy) ─────────────────────────────────
   return (
     <div className="max-w-md mx-auto px-4 py-6">
-      <h1 className="text-2xl font-bold mb-2">Laporan Insiden</h1>
+      {!session?.selectedTenantId && <TenantPicker tenants={tenants} selected={selectedTenant} onSelect={id => { setLoading(true); setSelectedTenant(id) }} />}
+      <h1 className="text-2xl font-bold mb-2 mt-4">Laporan Insiden</h1>
       <p className="text-sm text-gray-500 mb-6">Tap tombol untuk laporkan kejadian</p>
 
       {/* 3 tombol besar untuk Om Tommy */}

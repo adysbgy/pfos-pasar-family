@@ -49,7 +49,16 @@
       "Bash(curl -s -X POST https://pasarfamily.my.id/api/auth/pin -H \"Content-Type: application/json\" -d '{\"userId\":\"33333333-0000-0000-0000-000000000003\",\"pin\":\"123456\"}' -D - -o /tmp/pin_resp.json)",
       "Bash(curl -s https://pasarfamily.my.id/api/menu?tenantId=11111111-0000-0000-0000-000000000001 -b /tmp/pin_resp.json -c /tmp/cookies.txt)",
       "Bash(python3 -m json.tool)",
-      "Bash(curl -s \"https://pasarfamily.my.id/api/menu?tenantId=11111111-0000-0000-0000-000000000001\")"
+      "Bash(curl -s \"https://pasarfamily.my.id/api/menu?tenantId=11111111-0000-0000-0000-000000000001\")",
+      "Bash(git fetch *)",
+      "Bash(vercel ls *)",
+      "Bash(curl -s -X POST https://pasarfamily.my.id/api/auth/pin -H \"Content-Type: application/json\" -d '{\"userId\":\"33333333-0000-0000-0000-000000000003\",\"pin\":\"123456\"}' -c /tmp/prod_cookie.txt -D - -o /tmp/pin_body.json)",
+      "Bash(npx supabase *)",
+      "Bash(vercel inspect *)",
+      "Bash(curl -s -X POST https://pfos-pasar-family-b28eo78yo-adysjunior-4953s-projects.vercel.app/api/auth/pin -H \"Content-Type: application/json\" -d '{\"userId\":\"33333333-0000-0000-0000-000000000003\",\"pin\":\"123456\"}' -c /tmp/old_cookie.txt -o /tmp/old_pin.json -w \"%{http_code}\\\\n\")",
+      "Bash(dig +short db.ueronwrodyzhwmarizvs.supabase.co)",
+      "Bash(dig +short db.ueronwrodyzhwmarizvs.supabase.co AAAA)",
+      "Bash(xargs -r kill -9)"
     ]
   }
 }
