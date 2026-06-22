@@ -65,7 +65,10 @@
       "Bash(curl -s http://localhost:3000/app/login)",
       "Bash(git commit -m 'chore: update local permission allowlist *)",
       "Bash(curl -s -X POST https://pasarfamily.my.id/api/auth/pin -H \"Content-Type: application/json\" -d '{\"userId\":\"33333333-0000-0000-0000-000000000003\",\"pin\":\"123456\"}' -c /tmp/prod_cookie2.txt -o /tmp/prod_pin2.json)",
-      "Bash(curl -s -X POST https://pasarfamily.my.id/api/orders -b /tmp/prod_cookie2.txt -H 'Content-Type: application/json' -d '{ *)"
+      "Bash(curl -s -X POST https://pasarfamily.my.id/api/orders -b /tmp/prod_cookie2.txt -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://pasarfamily.my.id/app/vouchers)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://pasarfamily.my.id/app/analytics)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://pasarfamily.my.id/app/staff-kpi)"
     ]
   }
 }

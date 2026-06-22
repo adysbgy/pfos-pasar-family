@@ -66,6 +66,8 @@ export interface MenuItem {
   name: string
   price: number
   status: 'active' | 'inactive'
+  is_available: boolean
+  out_of_stock?: boolean
   sort_order: number
   created_at: string
   category?: Category

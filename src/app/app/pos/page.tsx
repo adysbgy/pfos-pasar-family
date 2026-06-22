@@ -99,12 +99,23 @@ export default function POSPage() {
   }
 
   const addToCart = useCallback((item: MenuItem) => {
+    if (!item.is_available || item.out_of_stock) return
     setCart(prev => {
       const ex = prev.find(c => c.menuItem.id === item.id)
       if (ex) return prev.map(c => c.menuItem.id === item.id ? { ...c, quantity: c.quantity + 1 } : c)
       return [...prev, { menuItem: item, quantity: 1 }]
     })
   }, [])
+
+  async function toggleAvailability(item: MenuItem) {
+    const newVal = !item.is_available
+    setMenuItems(prev => prev.map(m => m.id === item.id ? { ...m, is_available: newVal } : m))
+    await fetch('/api/menu', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: item.id, is_available: newVal }),
+    })
+  }
 
   const decreaseQty = useCallback((itemId: string) => {
     setCart(prev => prev.map(c => c.menuItem.id === itemId ? { ...c, quantity: c.quantity - 1 } : c).filter(c => c.quantity > 0))
@@ -384,19 +395,29 @@ export default function POSPage() {
         <div className="grid grid-cols-2 gap-3">
           {filteredMenu.map(item => {
             const qty = getQty(item.id)
+            const habis = !item.is_available || item.out_of_stock
             return (
-              <button key={item.id} onClick={() => addToCart(item)}
-                className={`text-left p-3 rounded-2xl border-2 transition-all active:scale-95
-                  ${qty>0 ? 'border-gray-900 bg-gray-50' : 'border-gray-100 bg-white'}`}>
-                <p className="font-semibold text-sm leading-tight line-clamp-2">{item.name}</p>
-                <p className="text-sm font-bold mt-1">{formatRupiah(item.price)}</p>
-                {qty>0 && (
-                  <div className="mt-1.5 flex justify-between">
-                    <span className="text-xs text-gray-500">×{qty}</span>
-                    <span className="text-xs font-semibold">{formatRupiah(item.price*qty)}</span>
-                  </div>
-                )}
-              </button>
+              <div key={item.id} className="relative">
+                <button onClick={() => addToCart(item)} disabled={habis}
+                  className={`w-full text-left p-3 rounded-2xl border-2 transition-all active:scale-95
+                    ${habis ? 'border-gray-100 bg-gray-50 opacity-60' : qty>0 ? 'border-gray-900 bg-gray-50' : 'border-gray-100 bg-white'}`}>
+                  <p className={`font-semibold text-sm leading-tight line-clamp-2 ${habis ? 'text-gray-400' : ''}`}>{item.name}</p>
+                  <p className={`text-sm font-bold mt-1 ${habis ? 'text-gray-400' : ''}`}>{formatRupiah(item.price)}</p>
+                  {habis && <p className="text-[10px] font-bold text-red-500 mt-1">⛔ HABIS</p>}
+                  {!habis && qty>0 && (
+                    <div className="mt-1.5 flex justify-between">
+                      <span className="text-xs text-gray-500">×{qty}</span>
+                      <span className="text-xs font-semibold">{formatRupiah(item.price*qty)}</span>
+                    </div>
+                  )}
+                </button>
+                <button onClick={() => toggleAvailability(item)}
+                  title={item.is_available ? 'Tandai habis' : 'Tandai tersedia'}
+                  className={`absolute top-1.5 right-1.5 w-6 h-6 rounded-full text-xs flex items-center justify-center
+                    ${item.is_available ? 'bg-white/80 text-gray-400' : 'bg-red-500 text-white'}`}>
+                  {item.is_available ? '⛔' : '✓'}
+                </button>
+              </div>
             )
           })}
         </div>

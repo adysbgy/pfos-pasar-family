@@ -44,6 +44,39 @@ export async function POST(request: Request) {
 
     const supabase = createAdminClient()
 
+    // 0. Tolak kalau ada item yang ditandai habis atau stok bahannya 0
+    const menuItemIds = items.map(i => i.menuItemId)
+    const { data: menuRows } = await supabase
+      .from('menu_items')
+      .select('id, name, is_available')
+      .in('id', menuItemIds)
+
+    const unavailable = (menuRows ?? []).filter(m => !m.is_available)
+    if (unavailable.length > 0) {
+      return NextResponse.json({
+        error: `Menu habis: ${unavailable.map(m => m.name).join(', ')}`,
+      }, { status: 409 })
+    }
+
+    const { data: recipeRows } = await supabase
+      .from('recipes')
+      .select('menu_item_id, inventory_item:inventory_items(name, stock:inventory_stock(current_qty))')
+      .in('menu_item_id', menuItemIds)
+
+    const outOfStockNames = new Set<string>()
+    ;(recipeRows ?? []).forEach((r: any) => {
+      const qty = r.inventory_item?.stock?.current_qty ?? r.inventory_item?.stock?.[0]?.current_qty
+      if (qty !== undefined && qty <= 0) {
+        const menuName = (menuRows ?? []).find(m => m.id === r.menu_item_id)?.name
+        if (menuName) outOfStockNames.add(menuName)
+      }
+    })
+    if (outOfStockNames.size > 0) {
+      return NextResponse.json({
+        error: `Bahan habis untuk: ${Array.from(outOfStockNames).join(', ')}`,
+      }, { status: 409 })
+    }
+
     // 1. Generate nomor order
     const today = new Date().toISOString().split('T')[0]
     const { data: seqData, error: seqError } = await supabase

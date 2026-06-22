@@ -44,7 +44,26 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Gagal mengambil data menu' }, { status: 500 })
   }
 
-  return NextResponse.json({ categories: catRes.data ?? [], menuItems: menuRes.data ?? [] })
+  // Deteksi stok habis dari resep: kalau ada bahan dengan stok 0, menu dianggap habis
+  const menuItems = menuRes.data ?? []
+  const menuIds = menuItems.map(m => m.id)
+  let outOfStockIds = new Set<string>()
+
+  if (menuIds.length > 0) {
+    const { data: recipeRows } = await supabase
+      .from('recipes')
+      .select('menu_item_id, inventory_item:inventory_items(stock:inventory_stock(current_qty))')
+      .in('menu_item_id', menuIds)
+
+    ;(recipeRows ?? []).forEach((r: any) => {
+      const qty = r.inventory_item?.stock?.current_qty ?? r.inventory_item?.stock?.[0]?.current_qty
+      if (qty !== undefined && qty <= 0) outOfStockIds.add(r.menu_item_id)
+    })
+  }
+
+  const itemsWithStock = menuItems.map(m => ({ ...m, out_of_stock: outOfStockIds.has(m.id) }))
+
+  return NextResponse.json({ categories: catRes.data ?? [], menuItems: itemsWithStock })
 }
 
 // POST — buat menu item baru
@@ -94,15 +113,22 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   const session = getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!['owner', 'supervisor'].includes(session.primaryRole)) {
-    return NextResponse.json({ error: 'Hanya owner/supervisor' }, { status: 403 })
-  }
 
   const body = await request.json()
   const { id, ...updates } = body
   if (!id) return NextResponse.json({ error: 'id wajib' }, { status: 400 })
 
-  const allowed = ['name', 'price', 'category_id', 'description', 'status', 'sort_order']
+  // Semua role login boleh toggle "habis" (is_available) — field lain hanya owner/supervisor
+  const isOwnerOrSup = ['owner', 'supervisor'].includes(session.primaryRole)
+  const onlyTogglingAvailability = Object.keys(updates).every(k => k === 'is_available')
+
+  if (!isOwnerOrSup && !onlyTogglingAvailability) {
+    return NextResponse.json({ error: 'Hanya owner/supervisor' }, { status: 403 })
+  }
+
+  const allowed = isOwnerOrSup
+    ? ['name', 'price', 'category_id', 'description', 'status', 'sort_order', 'is_available']
+    : ['is_available']
   const patch: Record<string, unknown> = {}
   for (const key of allowed) {
     if (key in updates) patch[key] = updates[key]
