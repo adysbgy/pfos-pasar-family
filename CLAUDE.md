@@ -53,35 +53,53 @@ pfos-app/
 │   ├── types/index.ts          ← Semua TS types + ROLE_HOME + TENANT_PREFIX + formatRupiah
 │   ├── middleware.ts            ← Route protection via pfos_session cookie
 │   ├── lib/supabase/
-│   │   ├── client.ts           ← Browser client
+│   │   ├── client.ts           ← Browser client (HINDARI dipakai di /app/* — kena RLS)
 │   │   ├── server.ts           ← Server component client
 │   │   └── admin.ts            ← Service role — HANYA di API routes
+│   ├── components/
+│   │   └── TenantPicker.tsx    ← Dipakai semua halaman lintas-tenant
 │   └── app/
 │       ├── api/
 │       │   ├── auth/pin/       ← POST: verifikasi PIN → set cookie
 │       │   ├── auth/logout/    ← POST: hapus cookie
 │       │   ├── auth/session/   ← GET: baca session
 │       │   ├── users/          ← GET: list staff aktif (public, untuk login)
-│       │   ├── orders/         ← POST: buat order
+│       │   ├── orders/         ← POST: buat order (+ voucher, table_number, auto-deduct resep)
 │       │   ├── menu/           ← GET/POST/PATCH/DELETE: manajemen menu
 │       │   ├── tenants/        ← GET: daftar tenant aktif
-│       │   ├── inventory/      ← GET/POST: stok + adjust
+│       │   ├── inventory/      ← GET/POST/PATCH: stok + adjust + harga bahan (cost_per_unit)
 │       │   ├── inventory/history/ ← GET: riwayat transaksi stok
 │       │   ├── reports/daily/  ← GET: aggregasi laporan harian
-│       │   └── reports/export-csv/ ← GET: download CSV (Excel-compatible)
+│       │   ├── reports/export-csv/ ← GET: download CSV (Excel-compatible)
+│       │   ├── kitchen/        ← GET/PATCH: antrian dapur (Sprint 2 fix: admin client)
+│       │   ├── qa/             ← GET/POST: QA gate
+│       │   ├── cash/           ← GET/POST: sesi kas + pengeluaran
+│       │   ├── closing/        ← GET/POST: laporan penutupan
+│       │   ├── dashboard/      ← GET/PATCH: alert + summary semua tenant
+│       │   ├── tasks/          ← GET/PATCH/POST: tugas harian
+│       │   ├── recipes/        ← GET/POST/DELETE: resep + COGS/margin (Sprint 3)
+│       │   ├── complaints/     ← GET/POST/PATCH: insiden (Sprint 3)
+│       │   ├── vouchers/ + /validate ← CRUD voucher + validasi di POS (Sprint 4)
+│       │   ├── analytics/      ← GET: menu terlaris, jam tersibuk, tren (Sprint 4)
+│       │   └── staff-kpi/      ← GET: KPI kasir + QA pass rate (Sprint 4)
 │       └── app/
 │           ├── login/          ← Staff grid + PIN keypad
-│           ├── pos/            ← Input order (kasir)
-│           ├── kitchen/        ← KDS antrian (kitchen)
+│           ├── pos/            ← Input order (kasir) — channel, meja, voucher
+│           ├── kitchen/        ← KDS antrian (kitchen) — badge meja
 │           ├── qa/             ← QA checklist 6 poin
 │           ├── cash/           ← Sesi kas
 │           ├── closing/        ← Laporan penutupan
 │           ├── tasks/          ← Tugas harian
 │           ├── dashboard/      ← Owner dashboard anti-bocor
-│           ├── inventory/      ← Manajemen stok
-│           ├── reports/        ← Laporan harian + export
-│           └── menu/           ← Manajemen menu (owner)
-└── database/
+│           ├── inventory/      ← Manajemen stok + harga bahan
+│           ├── reports/        ← Laporan harian + export + link Analytics
+│           ├── menu/           ← Manajemen menu (owner)
+│           ├── recipes/        ← Resep/BOM + COGS & margin (Sprint 3)
+│           ├── complaints/     ← Insiden — 3 tombol besar utk Om Tommy (Sprint 3)
+│           ├── vouchers/       ← Manajemen voucher (Sprint 4)
+│           ├── analytics/      ← Menu terlaris, jam tersibuk, tren (Sprint 4)
+│           └── staff-kpi/      ← Staff Performance Dashboard (Sprint 4)
+└── database/   ← KOSONG, tidak dipakai sejak Sprint 3 — lihat catatan di "Database — Tabel Utama"
     ├── schema.sql              ← Semua tabel + RLS + indexes
     ├── seed.sql                ← Data awal (5 tenant, 7 staff, menu)
     ├── functions.sql           ← RPC functions (sudah di-run di Supabase)
@@ -111,10 +129,22 @@ dashboard_alerts -- severity: red|yellow|green
 staff_tasks      -- tugas dari owner/supervisor
 
 -- Sprint 2 (sprint2_inventory.sql)
-inventory_items       -- item stok per tenant (unit, min_stock, category)
+inventory_items       -- item stok per tenant (unit, min_stock, category, cost_per_unit)
 inventory_stock       -- level stok saat ini (1 row per item)
 inventory_transactions -- history semua perubahan stok
+
+-- Sprint 3 (tidak ada file SQL lokal — dijalankan langsung ke Supabase via Management API)
+recipes          -- BOM: menu_item_id + inventory_item_id + qty_per_portion + unit
+complaints       -- insiden/komplain: reporter_id, type, severity, status, resolved_at
+-- orders.table_number TEXT — nomor meja untuk dine_in
+
+-- Sprint 4 (juga dijalankan langsung ke Supabase, bukan file lokal)
+vouchers         -- code, type (percent|fixed), value, min_purchase, max_discount,
+                 -- usage_limit, used_count, tenant_id nullable = semua tenant
+-- orders.voucher_id, orders.voucher_code
 ```
+
+⚠️ **Tidak ada folder `database/` di repo ini.** Semua migration SQL (Sprint 1-4) dijalankan langsung ke Supabase lewat SQL Editor atau Management API, bukan disimpan sebagai file di repo. Kalau butuh ubah skema, cek dulu struktur tabel asli via Supabase sebelum nulis query (gunakan `information_schema.columns`) — JANGAN asumsikan nama kolom.
 
 ## Supabase RPC Functions
 
@@ -126,6 +156,9 @@ inventory_transactions -- history semua perubahan stok
 | `get_active_users_for_login()` | GET /api/users |
 | `get_dashboard_summary(date)` | GET /api/dashboard |
 | `adjust_inventory_stock(item_id, type, qty_change, notes, user_id)` | POST /api/inventory |
+| `deduct_inventory_for_order(order_id)` | POST /api/orders (fire-and-forget, Sprint 3) |
+
+⚠️ Staff login pakai **PIN cookie custom**, BUKAN Supabase Auth — `auth.uid()` selalu kosong di browser. Semua baca/tulis tabel HARUS lewat API route dengan `createAdminClient()` (admin/service-role), jangan pakai `@/lib/supabase/client` di komponen browser — RLS akan selalu menolak (pernah jadi bug besar berulang kali, lihat git log "fix: ... RLS").
 
 ## Session Cookie
 
@@ -146,13 +179,21 @@ Baca di client: `fetch('/api/auth/session')`
 
 ## Nav Per Role (layout.tsx)
 
-| Role | Tab |
+| Role | Tab di bottom nav |
 |------|-----|
-| owner | Dashboard, POS, Menu🍽️, Stok📦, Laporan📈 |
-| supervisor | QA, Stok📦, Laporan📈, Tugas |
-| kasir | POS, Kas, Tugas |
-| kitchen | Dapur, Tugas |
-| qa_checker | QA, Tugas |
+| owner | Dashboard📊, POS🛒, Stok📦, Laporan📈, Voucher🎟️, Insiden🚨 |
+| supervisor | QA✅, Insiden🚨, Stok📦, Laporan📈, Tugas📋 |
+| kasir | POS🛒, Kas💵, Tugas📋 |
+| kitchen | Dapur🍳, Tugas📋 |
+| qa_checker | QA✅, Insiden🚨, Tugas📋 |
+
+Halaman yang **tidak** ada di bottom nav (supaya nav tidak penuh) tapi tetap bisa diakses via link dari halaman lain atau URL langsung:
+- `/app/menu` (Resep Menu) — link dari... *(belum ada link, akses via URL)*
+- `/app/recipes` (Resep & BOM, COGS) — link dari... *(belum ada link, akses via URL)*
+- `/app/analytics` (menu terlaris, jam tersibuk, tren) — link dari header halaman Laporan
+- `/app/staff-kpi` (KPI kasir + QA pass rate) — link dari header halaman Analytics
+
+Semua halaman lintas-tenant (POS, Kitchen, QA, Cash, Closing, Inventory, Recipes, Vouchers list, Insiden, Analytics) pakai `<TenantPicker>` (`@/components/TenantPicker`) yang HANYA muncul kalau `session.selectedTenantId` kosong (Owner & supervisor tidak punya home tenant tetap). Kalau bikin halaman baru yang butuh tenantId, JANGAN cuma pakai `session.selectedTenantId` — pasti macet di loading untuk Owner.
 
 ## Konvensi Coding
 
@@ -193,8 +234,15 @@ qty_change positif = masuk, negatif = keluar. RPC `adjust_inventory_stock` otoma
 | 2 | Inventory & Stok | ✅ LIVE |
 | 2 | Laporan Harian + Export CSV | ✅ LIVE |
 | 2 | Manajemen Menu | ✅ LIVE |
-| 2 | PWA (install di homescreen) | 🔜 |
-| 2 | Voucher & Diskon | 🔜 |
+| 3 | Resep/BOM + auto-deduct inventory | ✅ LIVE |
+| 3 | Complaint & Insiden UI | ✅ LIVE |
+| 3 | PWA (manifest + install banner) | ✅ LIVE (manifest/icon ada, install banner belum dibuat) |
+| 3 | Nomor Meja (dine_in) | ✅ LIVE |
+| 3 | Laporan Mingguan/Bulanan | ⚠️ Tergantikan oleh Analytics (tren harian 7/30 hari) |
+| 4 | Voucher & Diskon | ✅ LIVE |
+| 4 | Analytics (menu terlaris, jam tersibuk, tren) | ✅ LIVE |
+| 4 | COGS per menu (margin profit) | ✅ LIVE |
+| 4 | Staff Performance Dashboard (KPI) | ✅ LIVE |
 
 ## Commands
 
