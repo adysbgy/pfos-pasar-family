@@ -57,10 +57,14 @@ pfos-app/
 │   │   ├── server.ts           ← Server component client
 │   │   └── admin.ts            ← Service role — HANYA di API routes
 │   ├── components/
-│   │   └── TenantPicker.tsx    ← Dipakai semua halaman lintas-tenant
+│   │   ├── TenantPicker.tsx    ← Dipakai semua halaman lintas-tenant
+│   │   └── PushNotificationToggle.tsx ← Banner aktifkan Web Push di Dashboard (Sprint 5)
+│   ├── lib/push.ts             ← sendPushToRole() kirim Web Push ke owner (Sprint 5)
+│   ├── public/sw.js            ← Service worker: handle push + notificationclick (Sprint 5)
 │   └── app/
 │       ├── api/
-│       │   ├── auth/pin/       ← POST: verifikasi PIN → set cookie
+│       │   ├── auth/pin/       ← POST: verifikasi PIN → set cookie (+ rate limit lock 5x gagal, Sprint 5)
+│       │   ├── auth/change-pin/ ← POST: ganti PIN sendiri (verifikasi PIN lama, Sprint 5)
 │       │   ├── auth/logout/    ← POST: hapus cookie
 │       │   ├── auth/session/   ← GET: baca session
 │       │   ├── users/          ← GET: list staff aktif (public, untuk login)
@@ -79,12 +83,15 @@ pfos-app/
 │       │   ├── tasks/          ← GET/PATCH/POST: tugas harian
 │       │   ├── recipes/        ← GET/POST/DELETE: resep + COGS/margin (Sprint 3)
 │       │   ├── complaints/     ← GET/POST/PATCH: insiden (Sprint 3)
-│       │   ├── vouchers/ + /validate ← CRUD voucher + validasi di POS (Sprint 4)
-│       │   ├── analytics/      ← GET: menu terlaris, jam tersibuk, tren (Sprint 4)
-│       │   └── staff-kpi/      ← GET: KPI kasir + QA pass rate (Sprint 4)
+│       │   ├── vouchers/ + /validate + /report ← CRUD voucher + validasi POS + efektivitas (Sprint 4-5)
+│       │   ├── analytics/      ← GET: terlaris, jam, tren, channel, day-of-week, menu engineering (Sprint 4-5)
+│       │   ├── staff-kpi/      ← GET: KPI kasir + QA pass rate (Sprint 4)
+│       │   ├── opening-checks/ ← GET/POST: checklist pra-buka (Sprint 5)
+│       │   ├── suppliers/      ← GET/POST: supplier per tenant (Sprint 5)
+│       │   └── push/subscribe/ ← POST/DELETE: simpan/hapus Web Push subscription (Sprint 5)
 │       └── app/
 │           ├── login/          ← Staff grid + PIN keypad
-│           ├── pos/            ← Input order (kasir) — channel, meja, voucher
+│           ├── pos/            ← Input order (kasir) — channel, meja, voucher, toggle "Habis" (Sprint 5)
 │           ├── kitchen/        ← KDS antrian (kitchen) — badge meja
 │           ├── qa/             ← QA checklist 6 poin
 │           ├── cash/           ← Sesi kas
@@ -96,9 +103,11 @@ pfos-app/
 │           ├── menu/           ← Manajemen menu (owner)
 │           ├── recipes/        ← Resep/BOM + COGS & margin (Sprint 3)
 │           ├── complaints/     ← Insiden — 3 tombol besar utk Om Tommy (Sprint 3)
-│           ├── vouchers/       ← Manajemen voucher (Sprint 4)
-│           ├── analytics/      ← Menu terlaris, jam tersibuk, tren (Sprint 4)
-│           └── staff-kpi/      ← Staff Performance Dashboard (Sprint 4)
+│           ├── vouchers/       ← Manajemen voucher + laporan efektivitas (Sprint 4-5)
+│           ├── analytics/      ← Terlaris, jam, tren, channel, day-of-week, menu engineering (Sprint 4-5)
+│           ├── staff-kpi/      ← Staff Performance Dashboard (Sprint 4)
+│           ├── opening/        ← Opening Checklist pra-buka (Sprint 5)
+│           └── change-pin/     ← Ganti PIN sendiri (Sprint 5)
 └── database/   ← KOSONG, tidak dipakai sejak Sprint 3 — lihat catatan di "Database — Tabel Utama"
     ├── schema.sql              ← Semua tabel + RLS + indexes
     ├── seed.sql                ← Data awal (5 tenant, 7 staff, menu)
@@ -142,6 +151,15 @@ complaints       -- insiden/komplain: reporter_id, type, severity, status, resol
 vouchers         -- code, type (percent|fixed), value, min_purchase, max_discount,
                  -- usage_limit, used_count, tenant_id nullable = semua tenant
 -- orders.voucher_id, orders.voucher_code
+
+-- Sprint 5 / hardening (post Sprint 4 — dijalankan langsung ke Supabase)
+opening_checks      -- checklist pra-buka per tenant per hari (6 poin boolean), UNIQUE(tenant_id,date)
+push_subscriptions  -- Web Push: user_id + endpoint + p256dh + auth (1 row per device)
+suppliers           -- supplier per tenant (name, phone, is_active)
+-- menu_items.is_available BOOLEAN — toggle "Habis" harian (beda dari status yg utk kurasi permanen)
+-- inventory_transactions.supplier_id — audit trail pembelian (type=purchase wajib supplier)
+-- users.failed_pin_attempts INT + locked_until TIMESTAMPTZ — rate limit PIN (5x gagal = lock 5 menit)
+-- tenants.status: 'active' | 'pause' (Tjan = pause, tampil "TUTUP" di dashboard owner)
 ```
 
 ⚠️ **Tidak ada folder `database/` di repo ini.** Semua migration SQL (Sprint 1-4) dijalankan langsung ke Supabase lewat SQL Editor atau Management API, bukan disimpan sebagai file di repo. Kalau butuh ubah skema, cek dulu struktur tabel asli via Supabase sebelum nulis query (gunakan `information_schema.columns`) — JANGAN asumsikan nama kolom.
@@ -155,7 +173,7 @@ vouchers         -- code, type (percent|fixed), value, min_purchase, max_discoun
 | `next_order_sequence(tenant_id, date)` | POST /api/orders |
 | `get_active_users_for_login()` | GET /api/users |
 | `get_dashboard_summary(date)` | GET /api/dashboard |
-| `adjust_inventory_stock(item_id, type, qty_change, notes, user_id)` | POST /api/inventory |
+| `adjust_inventory_stock(item_id, type, qty_change, notes, user_id, supplier_id)` | POST /api/inventory (param `p_supplier_id` ditambah Sprint 5 — versi lama 5-arg sudah di-drop, jangan bikin overload) |
 | `deduct_inventory_for_order(order_id)` | POST /api/orders (fire-and-forget, Sprint 3) |
 
 ⚠️ Staff login pakai **PIN cookie custom**, BUKAN Supabase Auth — `auth.uid()` selalu kosong di browser. Semua baca/tulis tabel HARUS lewat API route dengan `createAdminClient()` (admin/service-role), jangan pakai `@/lib/supabase/client` di komponen browser — RLS akan selalu menolak (pernah jadi bug besar berulang kali, lihat git log "fix: ... RLS").
@@ -190,8 +208,10 @@ Baca di client: `fetch('/api/auth/session')`
 Halaman yang **tidak** ada di bottom nav (supaya nav tidak penuh) tapi tetap bisa diakses via link dari halaman lain atau URL langsung:
 - `/app/menu` (Resep Menu) — link dari... *(belum ada link, akses via URL)*
 - `/app/recipes` (Resep & BOM, COGS) — link dari... *(belum ada link, akses via URL)*
-- `/app/analytics` (menu terlaris, jam tersibuk, tren) — link dari header halaman Laporan
+- `/app/analytics` (menu terlaris, jam tersibuk, tren, channel split, day-of-week, menu engineering) — link dari header halaman Laporan
 - `/app/staff-kpi` (KPI kasir + QA pass rate) — link dari header halaman Analytics
+- `/app/opening` (Opening Checklist pra-buka, 6 poin ala QA) — link dari header halaman QA
+- `/app/change-pin` (ganti PIN sendiri) — link dari tap nama user di header layout
 
 Semua halaman lintas-tenant (POS, Kitchen, QA, Cash, Closing, Inventory, Recipes, Vouchers list, Insiden, Analytics) pakai `<TenantPicker>` (`@/components/TenantPicker`) yang HANYA muncul kalau `session.selectedTenantId` kosong (Owner & supervisor tidak punya home tenant tetap). Kalau bikin halaman baru yang butuh tenantId, JANGAN cuma pakai `session.selectedTenantId` — pasti macet di loading untuk Owner.
 
@@ -205,7 +225,8 @@ Semua halaman lintas-tenant (POS, Kitchen, QA, Cash, Closing, Inventory, Recipes
 - **Selisih kas > Rp10.000** = alert merah wajib
 - **Touch targets**: min 44px (gunakan `min-h-[44px]`)
 - Feedback tap: `active:scale-95 transition-transform duration-75`
-- Realtime: subscribe ke `orders`, `kitchen_queue`, `dashboard_alerts`
+- **Live update = POLLING, bukan Supabase Realtime** — Realtime tunduk RLS yg sama (auth.uid() kosong), jadi tidak jalan utk session PIN. Kitchen/QA poll 5 dtk, Dashboard 15 dtk via `setInterval` + fetch ke API route.
+- **Push notification kritis**: `sendPushToRole()` dari `@/lib/push` dipanggil saat insert alert merah (QA fail, selisih kas, komplain high, stok habis). Owner subscribe via banner di Dashboard. Service worker: `public/sw.js`.
 
 ## Inventory — Tipe Transaksi
 
@@ -243,6 +264,15 @@ qty_change positif = masuk, negatif = keluar. RPC `adjust_inventory_stock` otoma
 | 4 | Analytics (menu terlaris, jam tersibuk, tren) | ✅ LIVE |
 | 4 | COGS per menu (margin profit) | ✅ LIVE |
 | 4 | Staff Performance Dashboard (KPI) | ✅ LIVE |
+| 5 | Toggle "Habis" di POS + soft-block order stok 0 (server 409) | ✅ LIVE |
+| 5 | Opening Checklist pra-buka | ✅ LIVE |
+| 5 | Push Notification ke owner (Web Push/VAPID) | ✅ LIVE (perlu tes device asli — headless tak bisa verifikasi delivery) |
+| 5 | Purchase Receiving (supplier wajib + audit trail) | ✅ LIVE |
+| 5 | Staff PIN Change (self-service) + rate limit PIN | ✅ LIVE |
+| 5 | Analytics lanjutan (channel split, day-of-week, menu engineering, voucher report) | ✅ LIVE |
+| 5 | Tenant pause/"TUTUP" eksplisit di dashboard | ✅ LIVE |
+
+> ⚠️ **Keamanan:** kredensial Supabase (service_role key, DB password, sbp token) sempat tampil plaintext di transkrip chat saat dev sesi Sprint 5 → WAJIB di-rotate di dashboard. Format API key baru `sb_publishable_`/`sb_secret_` sudah dikonfirmasi kompatibel (key tidak pernah di-decode sbg JWT, cuma diteruskan sbg header `apikey`).
 
 ## Commands
 
