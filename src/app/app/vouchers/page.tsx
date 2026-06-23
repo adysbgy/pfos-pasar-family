@@ -24,9 +24,13 @@ interface Voucher {
   created_at: string
 }
 
+interface ReportRow { voucherId: string; code: string; uses: number; totalDiscount: number; totalRevenue: number }
+
 export default function VouchersPage() {
   const [tenants, setTenants]   = useState<Tenant[]>([])
   const [vouchers, setVouchers] = useState<Voucher[]>([])
+  const [report, setReport]     = useState<Record<string, ReportRow>>({})
+  const [reportSummary, setReportSummary] = useState<{ totalUses: number; totalDiscount: number; totalRevenue: number } | null>(null)
   const [loading, setLoading]   = useState(true)
   const [view, setView]         = useState<'list' | 'add'>('list')
   const [submitting, setSubmitting] = useState(false)
@@ -48,9 +52,17 @@ export default function VouchersPage() {
 
   async function loadVouchers() {
     setLoading(true)
-    const res = await fetch('/api/vouchers')
-    const data = await res.json()
-    setVouchers(data.vouchers ?? [])
+    const [vRes, rRes] = await Promise.all([
+      fetch('/api/vouchers'),
+      fetch('/api/vouchers/report'),
+    ])
+    const vData = await vRes.json()
+    const rData = await rRes.json()
+    setVouchers(vData.vouchers ?? [])
+    const map: Record<string, ReportRow> = {}
+    ;(rData.report ?? []).forEach((r: ReportRow) => { map[r.voucherId] = r })
+    setReport(map)
+    setReportSummary(rData.summary ?? null)
     setLoading(false)
   }
 
@@ -208,6 +220,27 @@ export default function VouchersPage() {
         </button>
       </div>
 
+      {/* Ringkasan efektivitas */}
+      {reportSummary && reportSummary.totalUses > 0 && (
+        <div className="card mb-4 bg-gray-900 text-white">
+          <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">Efektivitas Voucher</p>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <p className="text-lg font-bold">{reportSummary.totalUses}x</p>
+              <p className="text-[10px] text-gray-400">Dipakai</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold text-red-300">{formatRupiah(reportSummary.totalDiscount)}</p>
+              <p className="text-[10px] text-gray-400">Total Diskon</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold text-green-300">{formatRupiah(reportSummary.totalRevenue)}</p>
+              <p className="text-[10px] text-gray-400">Omzet Terkait</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {vouchers.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <p className="text-4xl mb-3">🎟️</p>
@@ -231,6 +264,12 @@ export default function VouchersPage() {
                 {tenantName(v.tenant_id)} · Min belanja {formatRupiah(v.min_purchase)}
                 {v.usage_limit ? ` · Dipakai ${v.used_count}/${v.usage_limit}` : ` · Dipakai ${v.used_count}x`}
               </p>
+              {report[v.id] && report[v.id].uses > 0 && (
+                <div className="mt-2 flex gap-3 text-xs bg-gray-50 rounded-lg px-3 py-2">
+                  <span className="text-red-600">Diskon: {formatRupiah(report[v.id].totalDiscount)}</span>
+                  <span className="text-green-700">Omzet: {formatRupiah(report[v.id].totalRevenue)}</span>
+                </div>
+              )}
               <div className="flex gap-2 mt-3">
                 <button onClick={() => toggleStatus(v)}
                   className="flex-1 text-xs font-medium py-2 rounded-lg bg-gray-100 text-gray-700 active:bg-gray-200">
