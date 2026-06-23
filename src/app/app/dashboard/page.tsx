@@ -11,6 +11,7 @@ export default function DashboardPage() {
   const [alerts, setAlerts]           = useState<DashboardAlert[]>([])
   const [tenantStats, setTenantStats] = useState<any[]>([])
   const [closingStatus, setClosingStatus] = useState<any[]>([])
+  const [pausedTenants, setPausedTenants] = useState<any[]>([])
 
   useEffect(() => {
     loadDashboard()
@@ -25,6 +26,7 @@ export default function DashboardPage() {
     setAlerts(data.alerts ?? [])
     setTenantStats(data.tenantStats ?? [])
     setClosingStatus(data.tenantStats ?? [])
+    setPausedTenants(data.pausedTenants ?? [])
     setSummary(data.summary)
     setLoading(false)
   }
@@ -107,6 +109,18 @@ export default function DashboardPage() {
                 </span>
               )}
             </div>
+          </div>
+        ))}
+
+        {/* Tenant yang sedang pause/tutup — eksplisit supaya tidak terlihat "hilang" */}
+        {pausedTenants.map(t => (
+          <div key={t.id} className="card flex items-center gap-3 opacity-60 border-dashed">
+            <div className="w-2.5 h-10 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} />
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm text-gray-500">{t.name}</p>
+              <p className="text-xs text-gray-400">Tidak beroperasi</p>
+            </div>
+            <span className="text-xs font-bold bg-gray-200 text-gray-600 px-2 py-1 rounded-full">⏸ TUTUP</span>
           </div>
         ))}
       </div>

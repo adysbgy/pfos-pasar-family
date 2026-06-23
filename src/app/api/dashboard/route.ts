@@ -9,14 +9,18 @@ export async function GET() {
 
   const [alertRes, tenantRes, ordersRes, closingRes] = await Promise.all([
     supabase.from('dashboard_alerts').select('*').eq('is_resolved', false).order('created_at', { ascending: false }).limit(20),
-    supabase.from('tenants').select('id, name, color, slug').eq('status', 'active').order('sort_order'),
+    supabase.from('tenants').select('id, name, color, slug, status').order('sort_order'),
     supabase.from('orders').select('tenant_id, total, payment_method, status, channel').gte('created_at', today),
     supabase.from('closing_reports').select('tenant_id').eq('date', today),
   ])
 
   const orders = ordersRes.data ?? []
   const completed = orders.filter((o: any) => ['completed', 'ready'].includes(o.status))
-  const tenants   = tenantRes.data ?? []
+  const allTenants = tenantRes.data ?? []
+  const tenants    = allTenants.filter((t: any) => t.status === 'active')
+  const pausedTenants = allTenants
+    .filter((t: any) => t.status !== 'active')
+    .map((t: any) => ({ id: t.id, name: t.name, color: t.color, slug: t.slug, status: t.status }))
   const closedIds = new Set((closingRes.data ?? []).map((r: any) => r.tenant_id))
 
   const tenantStats = tenants.map((t: any) => {
@@ -38,7 +42,7 @@ export async function GET() {
     unreadAlerts: alerts.filter((a: any) => !a.is_read).length,
   }
 
-  return NextResponse.json({ summary, alerts, tenantStats })
+  return NextResponse.json({ summary, alerts, tenantStats, pausedTenants })
 }
 
 export async function PATCH(request: Request) {
