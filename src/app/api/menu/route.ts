@@ -3,15 +3,9 @@
 // PATCH /api/menu — Edit item / toggle status
 // DELETE /api/menu?id=xxx — Hapus item (owner only)
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { SessionPayload } from '@/types'
+import { getSession } from '@/lib/session'
 
-function getSession(): SessionPayload | null {
-  const raw = cookies().get('pfos_session')?.value
-  if (!raw) return null
-  try { return JSON.parse(raw) } catch { return null }
-}
 
 // GET — untuk POS dan halaman manajemen menu
 export async function GET(request: Request) {
@@ -68,7 +62,7 @@ export async function GET(request: Request) {
 
 // POST — buat menu item baru
 export async function POST(request: Request) {
-  const session = getSession()
+  const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!['owner', 'supervisor'].includes(session.primaryRole)) {
     return NextResponse.json({ error: 'Hanya owner/supervisor' }, { status: 403 })
@@ -111,7 +105,7 @@ export async function POST(request: Request) {
 
 // PATCH — edit field atau toggle status
 export async function PATCH(request: Request) {
-  const session = getSession()
+  const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
@@ -152,7 +146,7 @@ export async function PATCH(request: Request) {
 
 // DELETE — hapus item (hanya owner)
 export async function DELETE(request: Request) {
-  const session = getSession()
+  const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (session.primaryRole !== 'owner') {
     return NextResponse.json({ error: 'Hanya owner' }, { status: 403 })

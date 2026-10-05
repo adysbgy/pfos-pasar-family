@@ -1,15 +1,11 @@
 // GET /api/reports/export-csv?date=2026-06-21
 // Returns UTF-8 BOM CSV — bisa dibuka langsung di Excel
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import type { SessionPayload } from '@/types'
+import { getSession } from '@/lib/session'
 
 export async function GET(request: Request) {
-  const raw = cookies().get('pfos_session')?.value
-  if (!raw) return new NextResponse('Unauthorized', { status: 401 })
-
-  let session: SessionPayload
-  try { session = JSON.parse(raw) } catch { return new NextResponse('Unauthorized', { status: 401 }) }
+  const session = await getSession()
+  if (!session) return new NextResponse('Unauthorized', { status: 401 })
 
   if (!['owner', 'supervisor', 'marketing_admin'].includes(session.primaryRole)) {
     return new NextResponse('Forbidden', { status: 403 })
@@ -21,7 +17,7 @@ export async function GET(request: Request) {
   // Fetch data from daily report API
   const baseUrl = new URL(request.url).origin
   const reportRes = await fetch(`${baseUrl}/api/reports/daily?date=${date}`, {
-    headers: { Cookie: `pfos_session=${raw}` },
+    headers: { Cookie: request.headers.get('cookie') ?? '' },
   })
   const report = await reportRes.json()
 

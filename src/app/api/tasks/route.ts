@@ -2,18 +2,13 @@
 // PATCH /api/tasks — Tandai tugas selesai
 // POST  /api/tasks — action: 'add' (tugas baru) | 'complaint' (insiden cepat)
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { SessionPayload, RoleName } from '@/types'
+import type { RoleName } from '@/types'
+import { getSession } from '@/lib/session'
 
-function getSession(): SessionPayload | null {
-  const raw = cookies().get('pfos_session')?.value
-  if (!raw) return null
-  try { return JSON.parse(raw) } catch { return null }
-}
 
 export async function GET() {
-  const session = getSession()
+  const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Tidak terautentikasi' }, { status: 401 })
 
   const supabase = createAdminClient()
@@ -60,7 +55,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = getSession()
+  const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Tidak terautentikasi' }, { status: 401 })
 
   const body = await request.json()

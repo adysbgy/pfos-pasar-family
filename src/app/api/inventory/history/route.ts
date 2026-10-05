@@ -1,15 +1,11 @@
 // GET /api/inventory/history?itemId=xxx — Riwayat transaksi per item
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { SessionPayload } from '@/types'
+import { getSession } from '@/lib/session'
 
 export async function GET(request: Request) {
-  const raw = cookies().get('pfos_session')?.value
-  if (!raw) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  let session: SessionPayload
-  try { session = JSON.parse(raw) } catch { return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   void session // session valid check is enough
 
   const { searchParams } = new URL(request.url)
