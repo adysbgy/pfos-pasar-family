@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSession } from '@/lib/session'
+import { canAccessTenant } from '@/lib/authz'
 
 
 export async function GET(request: Request) {
@@ -11,6 +12,12 @@ export async function GET(request: Request) {
   const date = searchParams.get('date') ?? new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
 
   if (!tenantId) return NextResponse.json({ error: 'tenantId wajib diisi' }, { status: 400 })
+
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!canAccessTenant(session, tenantId)) {
+    return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
+  }
 
   const supabase = createAdminClient()
   const { data, error } = await supabase
@@ -41,6 +48,9 @@ export async function POST(request: Request) {
 
   if (!tenantId || !items) {
     return NextResponse.json({ error: 'tenantId, items wajib' }, { status: 400 })
+  }
+  if (!canAccessTenant(session, tenantId)) {
+    return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
   }
 
   const date = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })

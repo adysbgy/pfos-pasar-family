@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToRole } from '@/lib/push'
 import { getSession } from '@/lib/session'
+import { canAccessTenant } from '@/lib/authz'
 
 
 export async function GET(request: Request) {
@@ -14,6 +15,14 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const tenantId = searchParams.get('tenantId') ?? session.selectedTenantId
   const status   = searchParams.get('status') // open | resolved | null = semua
+
+  if (tenantId) {
+    if (!canAccessTenant(session, tenantId)) {
+      return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
+    }
+  } else if (session.primaryRole !== 'owner') {
+    return NextResponse.json({ error: 'tenantId wajib untuk peran Anda' }, { status: 400 })
+  }
 
   const supabase = createAdminClient()
   let query = supabase
@@ -39,6 +48,9 @@ export async function POST(request: Request) {
 
   if (!tenantId || !type || !description) {
     return NextResponse.json({ error: 'tenantId, type, description wajib' }, { status: 400 })
+  }
+  if (!canAccessTenant(session, tenantId)) {
+    return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
   }
 
   const supabase = createAdminClient()
@@ -87,6 +99,12 @@ export async function PATCH(request: Request) {
   if (!id) return NextResponse.json({ error: 'id wajib' }, { status: 400 })
 
   const supabase = createAdminClient()
+
+  // OTORISASI: pastikan insiden milik tenant yang boleh diakses
+  const { data: cm } = await supabase.from('complaints').select('tenant_id').eq('id', id).single()
+  if (!cm || !canAccessTenant(session, cm.tenant_id)) {
+    return NextResponse.json({ error: 'Tidak punya akses' }, { status: 403 })
+  }
   const { data, error } = await supabase
     .from('complaints')
     .update({

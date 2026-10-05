@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSession } from '@/lib/session'
+import { canAccessTenant } from '@/lib/authz'
 
 
 export async function GET(request: Request) {
@@ -10,6 +11,14 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url)
   const tenantId = searchParams.get('tenantId')
+
+  if (tenantId) {
+    if (!canAccessTenant(session, tenantId)) {
+      return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
+    }
+  } else if (session.primaryRole !== 'owner') {
+    return NextResponse.json({ error: 'tenantId wajib untuk peran Anda' }, { status: 400 })
+  }
 
   const supabase = createAdminClient()
 

@@ -2,6 +2,8 @@
 // Menu terlaris, jam tersibuk, tren harian, channel split, pola per hari, menu engineering
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getSession } from '@/lib/session'
+import { canAccessTenant } from '@/lib/authz'
 
 const DONE_STATUSES = ['completed', 'ready']
 const DOW_NAMES = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
@@ -33,6 +35,13 @@ export async function GET(request: Request) {
   if (!tenantId) {
     return NextResponse.json({ error: 'tenantId wajib diisi' }, { status: 400 })
   }
+
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!canAccessTenant(session, tenantId)) {
+    return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
+  }
+
 
   const supabase = createAdminClient()
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()

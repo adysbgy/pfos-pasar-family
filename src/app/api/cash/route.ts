@@ -2,6 +2,8 @@
 // POST /api/cash — action: 'open' (buka sesi) | 'expense' (catat pengeluaran)
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getSession } from '@/lib/session'
+import { canAccessTenant } from '@/lib/authz'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -9,6 +11,12 @@ export async function GET(request: Request) {
 
   if (!tenantId) {
     return NextResponse.json({ error: 'tenantId wajib diisi' }, { status: 400 })
+  }
+
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!canAccessTenant(session, tenantId)) {
+    return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
   }
 
   const supabase = createAdminClient()
@@ -28,6 +36,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const body = await request.json()
   const { action } = body as { action?: 'open' | 'expense' }
   const supabase = createAdminClient()
@@ -36,6 +47,9 @@ export async function POST(request: Request) {
     const { tenantId, userId, openingCash } = body as { tenantId?: string; userId?: string; openingCash?: number }
     if (!tenantId || !userId) {
       return NextResponse.json({ error: 'tenantId, userId wajib' }, { status: 400 })
+    }
+    if (!canAccessTenant(session, tenantId)) {
+      return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
     }
     const today = new Date().toISOString().split('T')[0]
     const { data, error } = await supabase.from('cash_sessions').insert({
@@ -60,6 +74,10 @@ export async function POST(request: Request) {
     }
     if (!sessionId || !amount || !description) {
       return NextResponse.json({ error: 'sessionId, amount, description wajib' }, { status: 400 })
+    }
+    const { data: cs } = await supabase.from('cash_sessions').select('tenant_id').eq('id', sessionId).single()
+    if (!cs || !canAccessTenant(session, cs.tenant_id)) {
+      return NextResponse.json({ error: 'Tidak punya akses' }, { status: 403 })
     }
     const { data, error } = await supabase.from('cash_expenses').insert({
       session_id: sessionId,
