@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { OrderChannel, PaymentMethod } from '@/types'
 import { getSession } from '@/lib/session'
+import { canAccessTenant } from '@/lib/authz'
 
 interface OrderItem {
   menuItemId: string
@@ -38,6 +39,12 @@ export async function POST(request: Request) {
 
     if (!tenantId || !channel || !items?.length || !paymentMethod) {
       return NextResponse.json({ error: 'Data order tidak lengkap' }, { status: 400 })
+    }
+
+    // OTORISASI: pastikan user hanya boleh buat order di tenant miliknya
+    // (owner boleh semua; lainnya hanya home/selected tenant)
+    if (!canAccessTenant(session, tenantId)) {
+      return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
     }
 
     const supabase = createAdminClient()

@@ -32,3 +32,6 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Claude Code — JANGAN commit (bisa berisi PIN/kredensial)
+.claude/
