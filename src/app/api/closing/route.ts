@@ -2,6 +2,8 @@
 // POST /api/closing — Submit closing report, tutup sesi kas, alert jika selisih besar
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getSession } from '@/lib/session'
+import { canAccessTenant } from '@/lib/authz'
 import { sendPushToRole } from '@/lib/push'
 
 export async function GET(request: Request) {
@@ -10,6 +12,12 @@ export async function GET(request: Request) {
 
   if (!tenantId) {
     return NextResponse.json({ error: 'tenantId wajib diisi' }, { status: 400 })
+  }
+
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!canAccessTenant(session, tenantId)) {
+    return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
   }
 
   const supabase = createAdminClient()
@@ -56,6 +64,12 @@ export async function POST(request: Request) {
 
   if (!tenantId || !userId || !summary) {
     return NextResponse.json({ error: 'tenantId, userId, summary wajib' }, { status: 400 })
+  }
+
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!canAccessTenant(session, tenantId)) {
+    return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
   }
 
   const supabase = createAdminClient()

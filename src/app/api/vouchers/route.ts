@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSession } from '@/lib/session'
+import { canAccessTenant } from '@/lib/authz'
 
 
 export async function GET(request: Request) {
@@ -13,6 +14,10 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url)
   const tenantId = searchParams.get('tenantId')
+
+  if (tenantId && !canAccessTenant(session, tenantId)) {
+    return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
+  }
 
   const supabase = createAdminClient()
   let query = supabase.from('vouchers').select('*').order('created_at', { ascending: false })
@@ -43,6 +48,9 @@ export async function POST(request: Request) {
   }
   if (type === 'percent' && (value <= 0 || value > 100)) {
     return NextResponse.json({ error: 'Persen harus 1-100' }, { status: 400 })
+  }
+  if (tenantId && !canAccessTenant(session, tenantId)) {
+    return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
   }
 
   const supabase = createAdminClient()
@@ -90,6 +98,13 @@ export async function PATCH(request: Request) {
   }
 
   const supabase = createAdminClient()
+
+  // OTORISASI: pastikan voucher milik tenant yang boleh diakses (voucher global = null)
+  const { data: vc } = await supabase.from('vouchers').select('tenant_id').eq('id', id).single()
+  if (!vc || (vc.tenant_id && !canAccessTenant(session, vc.tenant_id))) {
+    return NextResponse.json({ error: 'Tidak punya akses' }, { status: 403 })
+  }
+
   const { data, error } = await supabase.from('vouchers').update(patch).eq('id', id).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true, voucher: data })
@@ -107,6 +122,13 @@ export async function DELETE(request: Request) {
   if (!id) return NextResponse.json({ error: 'id diperlukan' }, { status: 400 })
 
   const supabase = createAdminClient()
+
+  // OTORISASI: pastikan voucher milik tenant yang boleh diakses
+  const { data: vc } = await supabase.from('vouchers').select('tenant_id').eq('id', id).single()
+  if (!vc || (vc.tenant_id && !canAccessTenant(session, vc.tenant_id))) {
+    return NextResponse.json({ error: 'Tidak punya akses' }, { status: 403 })
+  }
+
   const { error } = await supabase.from('vouchers').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })

@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToRole } from '@/lib/push'
 import { getSession } from '@/lib/session'
+import { canAccessTenant } from '@/lib/authz'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -11,6 +12,12 @@ export async function GET(request: Request) {
 
   if (!tenantId) {
     return NextResponse.json({ error: 'tenantId wajib diisi' }, { status: 400 })
+  }
+
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!canAccessTenant(session, tenantId)) {
+    return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
   }
 
   const supabase = createAdminClient()
@@ -50,6 +57,12 @@ export async function POST(request: Request) {
   }
 
   const supabase = createAdminClient()
+
+  // OTORISASI: pastikan order milik tenant yang boleh diakses
+  const { data: ord } = await supabase.from('orders').select('tenant_id').eq('id', orderId).single()
+  if (!ord || !canAccessTenant(session, ord.tenant_id)) {
+    return NextResponse.json({ error: 'Tidak punya akses' }, { status: 403 })
+  }
 
   const { error: checkError } = await supabase.from('qa_checks').insert({
     order_id: orderId, checker_id: session.userId,

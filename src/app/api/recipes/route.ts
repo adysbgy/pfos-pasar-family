@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSession } from '@/lib/session'
+import { canAccessTenant } from '@/lib/authz'
 
 
 export async function GET(request: Request) {
@@ -16,6 +17,16 @@ export async function GET(request: Request) {
   const tenantId   = searchParams.get('tenantId')
 
   const supabase = createAdminClient()
+
+  if (tenantId && !canAccessTenant(session, tenantId)) {
+    return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
+  }
+  if (menuItemId) {
+    const { data: mi } = await supabase.from('menu_items').select('tenant_id').eq('id', menuItemId).single()
+    if (!mi || !canAccessTenant(session, mi.tenant_id)) {
+      return NextResponse.json({ error: 'Tidak punya akses' }, { status: 403 })
+    }
+  }
 
   if (menuItemId) {
     const [{ data, error }, { data: menuItem }] = await Promise.all([
@@ -79,6 +90,12 @@ export async function POST(request: Request) {
   }
 
   const supabase = createAdminClient()
+
+  // OTORISASI: pastikan menu milik tenant yang boleh diakses
+  const { data: mi } = await supabase.from('menu_items').select('tenant_id').eq('id', menuItemId).single()
+  if (!mi || !canAccessTenant(session, mi.tenant_id)) {
+    return NextResponse.json({ error: 'Tidak punya akses' }, { status: 403 })
+  }
   const { data, error } = await supabase
     .from('recipes')
     .upsert({
@@ -107,6 +124,14 @@ export async function DELETE(request: Request) {
   if (!id) return NextResponse.json({ error: 'id diperlukan' }, { status: 400 })
 
   const supabase = createAdminClient()
+
+  // OTORISASI: pastikan resep milik tenant yang boleh diakses
+  const { data: rc } = await supabase.from('recipes').select('menu_item:menu_items(tenant_id)').eq('id', id).single()
+  const rcTenant = (rc as any)?.menu_item?.tenant_id
+  if (!rcTenant || !canAccessTenant(session, rcTenant)) {
+    return NextResponse.json({ error: 'Tidak punya akses' }, { status: 403 })
+  }
+
   const { error } = await supabase.from('recipes').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })

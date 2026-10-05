@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToRole } from '@/lib/push'
 import { getSession } from '@/lib/session'
+import { canAccessTenant } from '@/lib/authz'
 
 
 // GET — list semua item + stok saat ini
@@ -16,6 +17,9 @@ export async function GET(request: Request) {
   const tenantId = searchParams.get('tenantId') ?? session.selectedTenantId
 
   if (!tenantId) return NextResponse.json({ error: 'tenantId diperlukan' }, { status: 400 })
+  if (!canAccessTenant(session, tenantId)) {
+    return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
+  }
 
   const supabase = createAdminClient()
   const { data, error } = await supabase
@@ -44,6 +48,9 @@ export async function POST(request: Request) {
     const { tenantId, name, unit, category, minStock, initialQty, costPerUnit } = body
     if (!tenantId || !name || !unit) {
       return NextResponse.json({ error: 'name, unit, tenantId wajib' }, { status: 400 })
+    }
+    if (!canAccessTenant(session, tenantId)) {
+      return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
     }
 
     const { data: item, error: itemErr } = await supabase
@@ -74,6 +81,12 @@ export async function POST(request: Request) {
   }
   if (type === 'purchase' && !supplierId) {
     return NextResponse.json({ error: 'Pilih supplier untuk transaksi pembelian' }, { status: 400 })
+  }
+
+  // OTORISASI: pastikan item milik tenant yang boleh diakses
+  const { data: inv } = await supabase.from('inventory_items').select('tenant_id').eq('id', itemId).single()
+  if (!inv || !canAccessTenant(session, inv.tenant_id)) {
+    return NextResponse.json({ error: 'Tidak punya akses' }, { status: 403 })
   }
 
   const { data, error } = await supabase.rpc('adjust_inventory_stock', {
@@ -111,6 +124,12 @@ export async function PATCH(request: Request) {
   }
 
   const supabase = createAdminClient()
+
+  // OTORISASI: pastikan item milik tenant yang boleh diakses
+  const { data: inv } = await supabase.from('inventory_items').select('tenant_id').eq('id', itemId).single()
+  if (!inv || !canAccessTenant(session, inv.tenant_id)) {
+    return NextResponse.json({ error: 'Tidak punya akses' }, { status: 403 })
+  }
   const { data, error } = await supabase
     .from('inventory_items')
     .update({ cost_per_unit: costPerUnit })

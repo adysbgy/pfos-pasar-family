@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSession } from '@/lib/session'
+import { canAccessTenant, allowedTenantIds } from '@/lib/authz'
 
 export async function GET(request: Request) {
   const session = await getSession()
@@ -16,12 +17,18 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const date     = searchParams.get('date') ?? new Date().toISOString().split('T')[0]
   const tenantId = searchParams.get('tenantId') ?? null
+  const allowed = allowedTenantIds(session) // null = semua (owner)
+
+  if (tenantId && allowed && !allowed.includes(tenantId)) {
+    return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
+  }
 
   const supabase = createAdminClient()
 
   // Ambil tenant yang relevan
   let tenantsQuery = supabase.from('tenants').select('id, name, slug, color').eq('status', 'active')
   if (tenantId) tenantsQuery = tenantsQuery.eq('id', tenantId)
+  else if (allowed) tenantsQuery = tenantsQuery.in('id', allowed)
   const { data: tenants } = await tenantsQuery.order('sort_order')
 
   if (!tenants?.length) return NextResponse.json({ date, tenants: [] })

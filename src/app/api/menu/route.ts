@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSession } from '@/lib/session'
+import { canAccessTenant } from '@/lib/authz'
 
 
 // GET — untuk POS dan halaman manajemen menu
@@ -15,6 +16,12 @@ export async function GET(request: Request) {
 
   if (!tenantId) {
     return NextResponse.json({ error: 'tenantId wajib diisi' }, { status: 400 })
+  }
+
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!canAccessTenant(session, tenantId)) {
+    return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
   }
 
   const supabase = createAdminClient()
@@ -73,6 +80,9 @@ export async function POST(request: Request) {
 
   if (!tenantId || !name || price === undefined) {
     return NextResponse.json({ error: 'tenantId, name, price wajib' }, { status: 400 })
+  }
+  if (!canAccessTenant(session, tenantId)) {
+    return NextResponse.json({ error: 'Tidak punya akses ke tenant ini' }, { status: 403 })
   }
 
   const supabase = createAdminClient()
@@ -133,6 +143,13 @@ export async function PATCH(request: Request) {
   }
 
   const supabase = createAdminClient()
+
+  // OTORISASI: pastikan item milik tenant yang boleh diakses
+  const { data: mi } = await supabase.from('menu_items').select('tenant_id').eq('id', id).single()
+  if (!mi || !canAccessTenant(session, mi.tenant_id)) {
+    return NextResponse.json({ error: 'Tidak punya akses' }, { status: 403 })
+  }
+
   const { data, error } = await supabase
     .from('menu_items')
     .update(patch)
@@ -157,6 +174,13 @@ export async function DELETE(request: Request) {
   if (!id) return NextResponse.json({ error: 'id diperlukan' }, { status: 400 })
 
   const supabase = createAdminClient()
+
+  // OTORISASI: pastikan item milik tenant yang boleh diakses
+  const { data: mi } = await supabase.from('menu_items').select('tenant_id').eq('id', id).single()
+  if (!mi || !canAccessTenant(session, mi.tenant_id)) {
+    return NextResponse.json({ error: 'Tidak punya akses' }, { status: 403 })
+  }
+
   const { error } = await supabase.from('menu_items').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })
