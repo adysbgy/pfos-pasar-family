@@ -2,20 +2,14 @@
 // POST /api/inventory — Adjust stok (purchase/usage/waste/adjustment)
 // POST /api/inventory/items — Tambah item baru
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToRole } from '@/lib/push'
-import type { SessionPayload } from '@/types'
+import { getSession } from '@/lib/session'
 
-function getSession(): SessionPayload | null {
-  const raw = cookies().get('pfos_session')?.value
-  if (!raw) return null
-  try { return JSON.parse(raw) } catch { return null }
-}
 
 // GET — list semua item + stok saat ini
 export async function GET(request: Request) {
-  const session = getSession()
+  const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
@@ -39,7 +33,7 @@ export async function GET(request: Request) {
 
 // POST — adjust stok ATAU tambah item baru
 export async function POST(request: Request) {
-  const session = getSession()
+  const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
@@ -104,7 +98,7 @@ export async function POST(request: Request) {
 
 // PATCH — edit harga bahan (cost_per_unit) untuk hitung COGS
 export async function PATCH(request: Request) {
-  const session = getSession()
+  const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!['owner', 'supervisor'].includes(session.primaryRole)) {
     return NextResponse.json({ error: 'Hanya owner/supervisor' }, { status: 403 })

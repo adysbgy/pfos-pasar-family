@@ -3,18 +3,12 @@
 // POST /api/recipes               — tambah resep
 // DELETE /api/recipes?id=xxx      — hapus resep
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { SessionPayload } from '@/types'
+import { getSession } from '@/lib/session'
 
-function getSession(): SessionPayload | null {
-  const raw = cookies().get('pfos_session')?.value
-  if (!raw) return null
-  try { return JSON.parse(raw) } catch { return null }
-}
 
 export async function GET(request: Request) {
-  const session = getSession()
+  const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
@@ -71,7 +65,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = getSession()
+  const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!['owner', 'supervisor'].includes(session.primaryRole)) {
     return NextResponse.json({ error: 'Hanya owner/supervisor' }, { status: 403 })
@@ -102,7 +96,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const session = getSession()
+  const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!['owner', 'supervisor'].includes(session.primaryRole)) {
     return NextResponse.json({ error: 'Hanya owner/supervisor' }, { status: 403 })

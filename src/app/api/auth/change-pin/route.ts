@@ -1,16 +1,12 @@
 // POST /api/auth/change-pin — staff ganti PIN sendiri (perlu PIN lama untuk verifikasi)
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import bcrypt from 'bcryptjs'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { SessionPayload } from '@/types'
+import { getSession } from '@/lib/session'
 
 export async function POST(request: Request) {
-  const raw = cookies().get('pfos_session')?.value
-  if (!raw) return NextResponse.json({ error: 'Tidak terautentikasi' }, { status: 401 })
-
-  let session: SessionPayload
-  try { session = JSON.parse(raw) } catch { return NextResponse.json({ error: 'Tidak terautentikasi' }, { status: 401 }) }
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Tidak terautentikasi' }, { status: 401 })
 
   const body = await request.json()
   const { currentPin, newPin } = body as { currentPin?: string; newPin?: string }

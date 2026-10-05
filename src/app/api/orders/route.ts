@@ -1,9 +1,9 @@
 // POST /api/orders — Buat order baru
 // Flow: validasi → next_order_sequence → insert order → items → payment → kitchen_queue
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { SessionPayload, OrderChannel, PaymentMethod } from '@/types'
+import type { OrderChannel, PaymentMethod } from '@/types'
+import { getSession } from '@/lib/session'
 
 interface OrderItem {
   menuItemId: string
@@ -27,12 +27,10 @@ interface CreateOrderBody {
 
 export async function POST(request: Request) {
   // Baca session
-  const cookieStore = cookies()
-  const raw = cookieStore.get('pfos_session')?.value
-  if (!raw) {
+  const session = await getSession()
+  if (!session) {
     return NextResponse.json({ error: 'Tidak terautentikasi' }, { status: 401 })
   }
-  const session = JSON.parse(raw) as SessionPayload
 
   try {
     const body = await request.json() as CreateOrderBody

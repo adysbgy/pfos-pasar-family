@@ -1,17 +1,11 @@
 // GET /api/vouchers/report?tenantId=xxx — efektivitas voucher: dipakai, total diskon, omzet terkait
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { SessionPayload } from '@/types'
+import { getSession } from '@/lib/session'
 
-function getSession(): SessionPayload | null {
-  const raw = cookies().get('pfos_session')?.value
-  if (!raw) return null
-  try { return JSON.parse(raw) } catch { return null }
-}
 
 export async function GET(request: Request) {
-  const session = getSession()
+  const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(request.url)

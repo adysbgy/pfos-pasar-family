@@ -1,9 +1,9 @@
-// Middleware — proteksi route berdasarkan session cookie
+// Middleware — proteksi route berdasarkan session cookie (BERTANDA TANGAN)
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import type { SessionPayload } from '@/types'
+import { getSessionFromRequest } from '@/lib/session'
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Rute publik yang tidak butuh login
@@ -12,22 +12,8 @@ export function middleware(request: NextRequest) {
   const isApiUsers  = pathname === '/api/users'
   const isPublic    = isLoginPage || isApiAuth || isApiUsers
 
-  // Baca session dari cookie
-  const sessionCookie = request.cookies.get('pfos_session')
-  let session: SessionPayload | null = null
-
-  if (sessionCookie?.value) {
-    try {
-      session = JSON.parse(sessionCookie.value) as SessionPayload
-      // Cek expiry (8 jam)
-      const ageMs = Date.now() - session.loginAt
-      if (ageMs > 8 * 60 * 60 * 1000) {
-        session = null // expired
-      }
-    } catch {
-      session = null
-    }
-  }
+  // Baca + VERIFIKASI session (tanda tangan + expiry)
+  const session = await getSessionFromRequest(request)
 
   // Sudah login → jangan bisa akses /app/login lagi
   if (isLoginPage && session) {

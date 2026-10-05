@@ -1,9 +1,10 @@
 // POST /api/auth/pin — Verifikasi PIN staff, set session cookie
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { SessionPayload, RoleName } from '@/types'
+import type { RoleName } from '@/types'
 import { ROLE_HOME } from '@/types'
+import { setSession } from '@/lib/session'
+import type { SessionPayload } from '@/types'
 
 export async function POST(request: Request) {
   try {
@@ -114,14 +115,7 @@ export async function POST(request: Request) {
     }
 
     // 5. Simpan session ke httpOnly cookie
-    const cookieStore = cookies()
-    cookieStore.set('pfos_session', JSON.stringify(session), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 60 * 60 * 8, // 8 jam
-      path: '/',
-    })
+    await setSession(session)  // tandatangani + simpan cookie
 
     // 6. Catat activity log (non-blocking)
     supabase.from('activity_log').insert({

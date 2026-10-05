@@ -1,16 +1,12 @@
 // GET /api/reports/daily?date=2026-06-21&tenantId=xxx (opsional)
 // Kalau tenantId tidak ada = ambil semua tenant milik owner
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { SessionPayload } from '@/types'
+import { getSession } from '@/lib/session'
 
 export async function GET(request: Request) {
-  const raw = cookies().get('pfos_session')?.value
-  if (!raw) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  let session: SessionPayload
-  try { session = JSON.parse(raw) } catch { return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   // Hanya owner dan supervisor boleh lihat laporan
   if (!['owner', 'supervisor', 'marketing_admin', 'viewer'].includes(session.primaryRole)) {

@@ -1,10 +1,9 @@
 // GET  /api/qa?tenantId=xxx — Order yang menunggu QA
 // POST /api/qa — Submit hasil QA (pass/fail), sync kitchen_queue + orders + dashboard_alerts
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToRole } from '@/lib/push'
-import type { SessionPayload } from '@/types'
+import { getSession } from '@/lib/session'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -37,9 +36,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const raw = cookies().get('pfos_session')?.value
-  if (!raw) return NextResponse.json({ error: 'Tidak terautentikasi' }, { status: 401 })
-  const session = JSON.parse(raw) as SessionPayload
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Tidak terautentikasi' }, { status: 401 })
 
   const body = await request.json()
   const { orderId, queueId, orderNumber, checks, notes, result } = body as {
